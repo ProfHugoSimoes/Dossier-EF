@@ -353,8 +353,8 @@
 // ══════════════════════════════════════════════════════════════
 // SUPABASE — Autenticação e persistência
 // ══════════════════════════════════════════════════════════════
-const SUPA_URL = 'COLA_AQUI_O_TEU_PROJECT_URL';
-const SUPA_KEY = 'COLA_AQUI_A_TUA_ANON_PUBLIC_KEY';
+const SUPA_URL = 'https://egytmrqxguwwjactvpaf.supabase.co';
+const SUPA_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImVneXRtcnF4Z3V3d2phY3R2cGFmIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODA3ODc4NjMsImV4cCI6MjA5NjM2Mzg2M30.r6Q9KlUgSG5OsICBB5Bn4ENoZlIDJTHIv3IOfupx-_M';
 const supa = supabase.createClient(SUPA_URL, SUPA_KEY);
 
 let currentUser = null; // utilizador autenticado
@@ -1300,7 +1300,7 @@ function calcClassFinal(totalPontos, ano, semestre){
 function renderFichaAA(turma){
   if(!S.fichaAA) S.fichaAA={};
   const mob=isMobile();
-  const fichaUrl='https://TEUNOMEDEUTILIZADOR.github.io/Ficha-AA/ficha_autoavaliacao_ef_10ano_24.html';
+  const fichaUrl='https://ProfHugoSimoes.github.io/Ficha-AA/ficha_autoavaliacao_ef_10ano_24.html';
   const userId=(currentUser&&currentUser.id)||'';
   const anoLetivo=S.anoLetivo||'';
 
@@ -1316,7 +1316,7 @@ function renderFichaAA(turma){
   }
 
   function linkFromCode(code){
-    return `https://TEUNOMEDEUTILIZADOR.github.io/Ficha-AA/ficha_aluno.html?c=${code}`;
+    return `https://ProfHugoSimoes.github.io/Ficha-AA/ficha_aluno.html?c=${code}`;
   }
 
   // Estado sincronização
