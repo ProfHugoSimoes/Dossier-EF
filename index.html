@@ -659,6 +659,29 @@ function calcNivelGrelha(soma){
   if(soma<11) return {label:'P. Avançado', nota:2.5};
   return {label:'Avançado', nota:3};
 }
+// Grelha de Observação específica para Atletismo: provas com Resultado/Avaliação (3 repetições cada)
+const PROVAS_ATLETISMO=[
+  {key:'velocidade', label:'Velocidade 40 m'},
+  {key:'km',         label:'km'},
+  {key:'peso',       label:'Lançamento do Peso'},
+  {key:'comprimento',label:'Salto em Comprimento'},
+];
+const REPS_ATLETISMO=3;
+// Escalão por defeito, de acordo com a IDADE do aluno — a mesma idade apresentada na informação da turma
+// (calculada via calcIdade, referência 15 de setembro do ano letivo)
+// Faixas etárias associadas aos escalões do Desporto Escolar (Tabela 5, Regulamento do Desporto Escolar):
+//  Infantil A (Sub-11): até 10 anos | Infantil B (Sub-13): 11-12 anos | Iniciado (Sub-15): 13-14 anos
+//  Juvenil (Sub-18): 15-17 anos | Júnior (Sub-21): 18+ anos
+function getEscalaoAtletismoDefault(dataNasc, anoLetivo){
+  const ano1=parseInt(String(anoLetivo||'2025/2026').split('/')[0]);
+  const idade=calcIdade(dataNasc, ano1);
+  if(idade===null) return '';
+  if(idade<=10) return 'Infantil A';
+  if(idade<=12) return 'Infantil B';
+  if(idade<=14) return 'Iniciado';
+  if(idade<=17) return 'Juvenil';
+  return 'Júnior';
+}
 const ATIV_TITULOS_DEFAULT=['ANDEBOL','BASQUETEBOL','FUTEBOL','VOLEIBOL','GINÁSTICA','DANÇA','ATLETISMO','CORFEBOL','FRISBEE','HÓQUEI','ORIENTAÇÃO','RAQUETES','RUGBY','SOFTBOL'];
 // Títulos das modalidades: o 2º semestre herda sempre os títulos definidos no 1º semestre
 function getAtividadesTitulos(turmaId, sub){
@@ -4620,6 +4643,7 @@ function renderGrelhaObsModal(){
   const ativTitulosModal=getAtividadesTitulos(turma.id, sub);
   dados.atividadesTitulos=ativTitulosModal;
   const titulo=ativTitulosModal[col]||`Matéria ${col+1}`;
+  if(normalizeTitulo(titulo)==='ATLETISMO') return renderGrelhaObsModalAtletismo(turma, sub, col, titulo, dados);
   const criterios=getCriteriosGrelha(turma.id, sub, col, titulo);
   if(!dados.grelhaObs) dados.grelhaObs={};
   if(!dados.grelhaObs[col]) dados.grelhaObs[col]={};
@@ -4666,6 +4690,266 @@ function renderGrelhaObsModal(){
     <div class="modal-actions">
       <button class="btn" onclick="fecharGrelhaObs()">Fechar</button>
       <button class="btn btn-primary" onclick="exportarGrelhaObs()">📤 Exportar para grelha</button>
+    </div>
+  </div></div>`;
+}
+
+// Quadro informativo de referência — Critérios de Avaliação em Atletismo (Insuficiente/Suficiente/Bom/Muito Bom) por escalão e género
+const REF_ATLETISMO_ESCALOES=['Infantis A','Infantis B','Iniciados','Juvenis','Juniores'];
+const REF_ATLETISMO={
+  feminino:{
+    velocidade:{label:'Velocidade 40 m', unit:'segundos', valores:{
+      'Infantis A':['>7.40','>7.25','>6.90','<6.89'],
+      'Infantis B':['>7.05','>6.85','>6.65','<6.64'],
+      'Iniciados':['>6.85','>6.65','>6.45','<6.44'],
+      'Juvenis':['>6.65','>6.40','>6.15','<6.14'],
+      'Juniores':['>6.65','>6.40','>6.15','<6.14']}},
+    km:{label:'km', unit:'minutos:segundos', valores:{
+      'Infantis A':['>4.46','>4.30','>4.14','<4.13'],
+      'Infantis B':['>4.20','>4.05','>3.52','<3.51'],
+      'Iniciados':['>4.30','>4.14','>4.00','<3.59'],
+      'Juvenis':['>4.16','>4.00','>3.50','<3.49'],
+      'Juniores':['>4.16','>4.00','>3.50','<3.49']}},
+    comprimento:{label:'Salto em Comprimento', unit:'metros', valores:{
+      'Infantis A':['<2,7m','>2,69','>3m','>3,8'],
+      'Infantis B':['<3','>2,99','>3,2','>4'],
+      'Iniciados':['<3,1','>3,09','>3,3','>4,3'],
+      'Juvenis':['<3,6','>3,59','>3,85','>4,6'],
+      'Juniores':['<3,6','>3,59','>3,85','>4,6']}},
+    peso:{label:'Lançamento do Peso', unit:'metros', implemento:{
+      'Infantis A':'2kg','Infantis B':'2kg','Iniciados':'2kg','Juvenis':'3kg','Juniores':'3kg'}, valores:{
+      'Infantis A':['<6,1','>6,09','>7,1','>8,1'],
+      'Infantis B':['<6,6','>6,59','>7,6','>8,6'],
+      'Iniciados':['<7,2','>7,19','>8,2','>9,2'],
+      'Juvenis':['<7,2','>7,19','>8,2','>9,2'],
+      'Juniores':['<7,2','>7,19','>8,2','>9,2']}},
+  },
+  masculino:{
+    velocidade:{label:'Velocidade 40 m', unit:'segundos', valores:{
+      'Infantis A':['>6.95','>6.80','>6.70','<6.69'],
+      'Infantis B':['>6.70','>6.55','>6.35','<6.34'],
+      'Iniciados':['>6.25','>6.10','>5.95','<5.94'],
+      'Juvenis':['>6.15','>6.00','>5.65','<5.64'],
+      'Juniores':['>6.15','>6.00','>5.65','<5.64']}},
+    km:{label:'km', unit:'minutos:segundos', valores:{
+      'Infantis A':['>4.28','>4.10','>3.56','<3.55'],
+      'Infantis B':['>4.18','>4.00','>3.46','<3.45'],
+      'Iniciados':['>4.04','>3.46','>3.30','<3.29'],
+      'Juvenis':['>3.48','>3.30','>3.16','<3.15'],
+      'Juniores':['>3.48','>3.30','>3.16','<3.15']}},
+    comprimento:{label:'Salto em Comprimento', unit:'metros', valores:{
+      'Infantis A':['<3,1','>3,09','>3,55','>4,35'],
+      'Infantis B':['<3,6','>3,59','>4','>5'],
+      'Iniciados':['<3,85','>3,84','>4,3','>5,3'],
+      'Juvenis':['<4,45','>4,44','>4,45','>5,7'],
+      'Juniores':['<4,45','>4,44','>4,45','>5,7']}},
+    peso:{label:'Lançamento do Peso', unit:'metros', implemento:{
+      'Infantis A':'2kg','Infantis B':'2kg','Iniciados':'3kg','Juvenis':'4kg','Juniores':'4kg'}, valores:{
+      'Infantis A':['<8,5','>8,49','>9,5','>10,5'],
+      'Infantis B':['<9','>8,99','>10','>11'],
+      'Iniciados':['<9,5','>9,49','>10,5','>11,5'],
+      'Juvenis':['<9,5','>9,49','>10,5','>11,5'],
+      'Juniores':['<9,5','>9,49','>10,5','>11,5']}},
+  }
+};
+function renderQuadroRefAtletismoGenero(generoLabel, generoData, corHeader){
+  const provas=[generoData.velocidade, generoData.km, generoData.comprimento, generoData.peso];
+  const SEP_TH='<th rowspan="2" style="padding:0;border:none;background:#f8fafc;width:10px"></th>';
+  const SEP_TD='<td style="padding:0;border:none;background:#f8fafc;width:10px"></td>';
+  const grupoHeaders=provas.map((p,pi)=>(pi>0?SEP_TH:'')+`<th colspan="${p.implemento?5:4}" style="padding:5px 6px;text-align:center;color:#fff;font-weight:700;font-size:11px;border:1px solid rgba(255,255,255,0.15);background:${corHeader}">${esc(p.label)}<br><small style="font-weight:400;opacity:0.8">(${esc(p.unit)})</small></th>`).join('');
+  const subHeaders=provas.map((p)=>{
+    const cols=(p.implemento?['Peso','I','S','B','MB']:['I','S','B','MB']);
+    return cols.map(c=>`<th style="padding:4px;text-align:center;color:#fff;font-weight:600;font-size:10px;border:1px solid rgba(255,255,255,0.15);background:${corHeader}aa">${esc(c)}</th>`).join('');
+  }).join('');
+  const rows=REF_ATLETISMO_ESCALOES.map((esca,i)=>{
+    const bg=i%2===0?'#f8fafc':'#fff';
+    const cells=provas.map((p,pi)=>{
+      const vals=(p.implemento?[p.implemento[esca]]:[]).concat(p.valores[esca]);
+      return (pi>0?SEP_TD:'')+vals.map(v=>`<td style="padding:4px 6px;border:1px solid var(--border);text-align:center;font-size:11px;color:var(--navy)">${esc(v)}</td>`).join('');
+    }).join('');
+    return `<tr style="background:${bg}"><td style="padding:4px 8px;border:1px solid var(--border);font-weight:600;font-size:11px;color:var(--navy);white-space:nowrap">${esc(esca)}</td>${cells}</tr>`;
+  }).join('');
+  return `<div style="margin-bottom:14px">
+    <div style="font-weight:700;font-size:12px;color:var(--navy);margin-bottom:4px">${esc(generoLabel)}</div>
+    <table style="border-collapse:collapse;font-size:11px">
+      <thead>
+        <tr><th rowspan="2" style="padding:5px 8px;text-align:left;color:#fff;font-weight:600;font-size:11px;border:1px solid rgba(255,255,255,0.15);background:${corHeader}">Escalão</th>${grupoHeaders}</tr>
+        <tr>${subHeaders}</tr>
+      </thead>
+      <tbody>${rows}</tbody>
+    </table>
+  </div>`;
+}
+function renderQuadroRefAtletismo(){
+  return `<div style="margin-top:18px;padding:14px;background:#f8fafc;border:1px solid var(--border);border-radius:8px">
+    <div style="font-weight:700;font-size:13px;color:var(--navy);margin-bottom:10px">📋 Quadro Informativo — Critérios de Avaliação (I · Insuficiente / S · Suficiente / B · Bom / MB · Muito Bom)</div>
+    <div style="overflow:auto">
+      ${renderQuadroRefAtletismoGenero('FEMININO', REF_ATLETISMO.feminino, '#9d174d')}
+      ${renderQuadroRefAtletismoGenero('MASCULINO', REF_ATLETISMO.masculino, '#1e3a8a')}
+    </div>
+  </div>`;
+}
+// Provas em que valores MENORES são melhores (tempo): velocidade, km. Nas restantes (distância), valores MAIORES são melhores.
+const PROVAS_ATLETISMO_TEMPO=['velocidade','km'];
+// Converte um resultado textual (resultado do aluno) num número, aceitando vírgula ou ponto como decimal
+// e formato minutos:segundos (m:ss ou mm:ss) para a prova "km".
+function parseResultadoAtletismo(valor, prova){
+  if(valor==null) return null;
+  let v=String(valor).trim();
+  if(!v) return null;
+  if(prova==='km' && v.includes(':')){
+    const [m,s]=v.split(':');
+    const mm=parseFloat(m), ss=parseFloat((s||'0').replace(',','.'));
+    if(isNaN(mm)||isNaN(ss)) return null;
+    return mm+ss/60; // minutos com fração
+  }
+  v=v.replace(',','.');
+  const n=parseFloat(v);
+  return isNaN(n)?null:n;
+}
+// Calcula o nível (I/S/B/MB) de um resultado, dado a prova, género e escalão, usando REF_ATLETISMO.
+// Retorna '' se não houver dados suficientes (género/escalão/resultado em falta ou inválido).
+function calcAvaliacaoAtletismo(prova, genero, escalao, resultadoStr){
+  const generoKey=genero==='M'?'masculino':(genero==='F'?'feminino':'');
+  if(!generoKey||!escalao) return '';
+  const refGenero=REF_ATLETISMO[generoKey];
+  if(!refGenero||!refGenero[prova]) return '';
+  const escalaoMap={'Infantil A':'Infantis A','Infantil B':'Infantis B','Iniciado':'Iniciados','Juvenil':'Juvenis','Júnior':'Juniores'};
+  const escalaoRef=escalaoMap[escalao]||escalao;
+  const limites=refGenero[prova].valores[escalaoRef];
+  if(!limites) return '';
+  const n=parseResultadoAtletismo(resultadoStr, prova);
+  if(n===null) return '';
+  // limites: [I, S, B, MB] cada um como string '>x'/'<x' representando o limiar daquele nível.
+  // Na prova "km" o número é notação minutos.segundos (ex: 3.15 = 3min15s), não decimal.
+  const lims=limites.map(l=>{
+    const s=String(l).replace(/[<>]/g,'').replace('m','');
+    if(prova==='km'){
+      const [m,sec]=s.split(/[.,]/);
+      if(sec===undefined) return parseFloat(s);
+      return parseFloat(m)+parseFloat(sec)/60;
+    }
+    return parseFloat(s.replace(',','.'));
+  });
+  const tempoProva=PROVAS_ATLETISMO_TEMPO.includes(prova);
+  if(tempoProva){
+    // menor é melhor: lims=[limI, limS, limB, limMB] decrescentes.
+    // Cada banda usa o limiar do nível seguinte (mais alto) como teto.
+    if(n<=lims[3]) return 'MB';
+    if(n<=lims[1]) return 'B';
+    if(n<=lims[0]) return 'S';
+    return 'I';
+  } else {
+    // maior é melhor: lims=[limI, limS, limB, limMB] crescentes; cada nível é o seu próprio piso.
+    if(n>=lims[3]) return 'MB';
+    if(n>=lims[2]) return 'B';
+    if(n>=lims[1]) return 'S';
+    return 'I';
+  }
+}
+
+// Grelha de Observação específica para Atletismo (Resultado/Avaliação x3 por prova + Escalão + Data por tentativa)
+function renderGrelhaObsModalAtletismo(turma, sub, col, titulo, dados){
+  if(!dados.grelhaObsAtletismo) dados.grelhaObsAtletismo={};
+  if(!dados.grelhaObsAtletismo[col]) dados.grelhaObsAtletismo[col]={datas:Array(PROVAS_ATLETISMO.length*REPS_ATLETISMO).fill(''),alunos:{}};
+  const bloco=dados.grelhaObsAtletismo[col];
+  if(!bloco.alunos) bloco.alunos={};
+  if(!bloco.datas) bloco.datas=Array(PROVAS_ATLETISMO.length*REPS_ATLETISMO).fill('');
+  const semLabel=sub==='sem2'?'2º Semestre':'1º Semestre';
+  const totalCols=PROVAS_ATLETISMO.length*REPS_ATLETISMO*2;
+
+  const rows=turma.alunos.map((a,i)=>{
+    const nome=typeof a==='string'?a:a.nome;
+    const dataNasc=typeof a==='object'?a.dataNasc||'':'';
+    const genero=(typeof a==='object'?a.genero||'':'').toUpperCase();
+    const reg=bloco.alunos[nome]||{escalao:'',valores:Array(totalCols).fill('')};
+    if(!reg.escalao){
+      const def=getEscalaoAtletismoDefault(dataNasc, S.anoLetivo);
+      if(def){ reg.escalao=def; bloco.alunos[nome]=reg; }
+    }
+    const escalaoVal=reg.escalao;
+    const valores=reg.valores||Array(totalCols).fill('');
+    const bg=i%2===0?'#f8fafc':'#fff';
+    let idx=0;
+    const cells=PROVAS_ATLETISMO.map((prova,pi)=>{
+      const reps=[];
+      for(let r=0;r<REPS_ATLETISMO;r++){
+        const riR=idx++, riA=idx++;
+        reps.push(`<td style="padding:3px 2px;border:1px solid var(--border);text-align:center;background:#f0fdf4">
+          <input type="text" class="grelha-atlet-input grelha-atlet-resultado" data-nome="${esc(nome)}" data-idx="${riR}" data-idx-aval="${riA}" data-prova="${prova.key}" data-genero="${esc(genero)}" value="${esc(String(valores[riR]??''))}" placeholder="—"
+            style="width:54px;text-align:center;border:1px solid #86efac;border-radius:4px;padding:3px 2px;font-size:11px;background:transparent;color:#14532d">
+        </td><td style="padding:3px 2px;border:1px solid var(--border);text-align:center;background:#eff6ff">
+          <input type="text" class="grelha-atlet-input grelha-atlet-avaliacao" data-nome="${esc(nome)}" data-idx="${riA}" readonly value="${esc(String(valores[riA]??''))}" placeholder="—"
+            style="width:54px;text-align:center;border:1px solid #93c5fd;border-radius:4px;padding:3px 2px;font-size:11px;background:transparent;color:#1e3a8a;cursor:default">
+        </td>`);
+      }
+      return reps.join('');
+    }).join('');
+    return `<tr data-nome="${esc(nome)}" style="background:${bg}">
+      <td style="width:44px;box-sizing:border-box;padding:5px 8px;border:1px solid var(--border);text-align:center;color:var(--gray);font-weight:600;position:sticky;left:0;z-index:3;background:${bg}">${i+1}</td>
+      <td style="min-width:140px;box-sizing:border-box;padding:5px 10px;border:1px solid var(--border);font-weight:500;color:var(--navy);white-space:nowrap;position:sticky;left:44px;z-index:3;background:${bg};box-shadow:3px 0 5px -1px rgba(0,0,0,0.1)">${esc(nome)}</td>
+      <td style="padding:3px 4px;border:1px solid var(--border);text-align:center">
+        <input type="text" class="grelha-atlet-escalao" data-nome="${esc(nome)}" value="${esc(escalaoVal||'')}" placeholder="Escalão"
+          style="width:90px;text-align:center;border:1px solid var(--border);border-radius:4px;padding:3px 4px;font-size:11px">
+      </td>
+      ${cells}
+    </tr>`;
+  }).join('');
+
+  const H1=30, H2=24, H3=34, H4=24; // alturas fixas de cada linha do cabeçalho (px)
+  const T1=0, T2=H1, T3=H1+H2, T4=H1+H2+H3;
+  const grupoHeaders=PROVAS_ATLETISMO.map(p=>`<th colspan="${REPS_ATLETISMO*2}" style="height:${H1}px;box-sizing:border-box;padding:6px;text-align:center;color:#fff;font-weight:700;font-size:11px;border:1px solid rgba(255,255,255,0.15);background:var(--navy2);position:sticky;top:${T1}px;z-index:5">${esc(p.label)}</th>`).join('');
+  const repHeaders=PROVAS_ATLETISMO.map(()=>{
+    let h='';
+    for(let r=0;r<REPS_ATLETISMO;r++) h+=`<th colspan="2" style="height:${H2}px;box-sizing:border-box;padding:4px;text-align:center;color:#fff;font-weight:600;font-size:10px;border:1px solid rgba(255,255,255,0.15);background:var(--navy);position:sticky;top:${T2}px;z-index:5">${r+1}ª</th>`;
+    return h;
+  }).join('');
+  let dataIdx=0;
+  const dataHeaders=PROVAS_ATLETISMO.map(()=>{
+    let h='';
+    for(let r=0;r<REPS_ATLETISMO;r++){
+      const di=dataIdx++;
+      h+=`<th colspan="2" style="height:${H3}px;box-sizing:border-box;padding:3px 4px;text-align:center;background:var(--navy);position:sticky;top:${T3}px;z-index:5">
+        <input type="date" class="grelha-atlet-data-rep" data-idx="${di}" value="${esc(bloco.datas[di]||'')}"
+          style="width:100%;box-sizing:border-box;background:rgba(255,255,255,0.12);border:1px solid rgba(255,255,255,0.3);border-radius:4px;color:#fff;font-size:10px;padding:2px">
+      </th>`;
+    }
+    return h;
+  }).join('');
+  const subHeaders=PROVAS_ATLETISMO.map(()=>{
+    let h='';
+    for(let r=0;r<REPS_ATLETISMO;r++){
+      h+=`<th style="height:${H4}px;box-sizing:border-box;padding:4px;text-align:center;color:#fff;font-weight:500;font-size:10px;border:1px solid rgba(255,255,255,0.15);background:var(--navy);position:sticky;top:${T4}px;z-index:5">Resultado</th>`;
+      h+=`<th style="height:${H4}px;box-sizing:border-box;padding:4px;text-align:center;color:#fff;font-weight:500;font-size:10px;border:1px solid rgba(255,255,255,0.15);background:var(--navy);position:sticky;top:${T4}px;z-index:5">Avaliação</th>`;
+    }
+    return h;
+  }).join('');
+
+
+  return `<div class="modal-overlay" id="modalOverlay"><div class="modal" style="width:95vw;max-width:1280px;max-height:90vh;display:flex;flex-direction:column">
+    <div class="modal-title" style="display:flex;align-items:center;justify-content:space-between;gap:8px">
+      <span>👁️ Grelha de Observação — ${esc(titulo)} <small style="font-weight:400;color:var(--gray)">(${semLabel} · ${esc(turma.nome)})</small></span>
+    </div>
+    <div style="overflow:auto;flex:1;border:1px solid var(--border);border-radius:8px">
+      <table style="width:100%;border-collapse:collapse">
+        <thead>
+          <tr style="background:var(--navy)">
+            <th rowspan="4" style="width:44px;box-sizing:border-box;padding:8px 6px;text-align:center;color:#fff;font-weight:600;border:1px solid rgba(255,255,255,0.15);position:sticky;top:0;left:0;background:var(--navy);z-index:8">#</th>
+            <th rowspan="4" style="min-width:140px;box-sizing:border-box;padding:8px 10px;text-align:left;color:#fff;font-weight:600;border:1px solid rgba(255,255,255,0.15);position:sticky;top:0;left:44px;background:var(--navy);z-index:8;box-shadow:3px 0 5px -1px rgba(0,0,0,0.2)">Nome</th>
+            <th rowspan="4" style="padding:8px 6px;text-align:center;color:#fff;font-weight:600;border:1px solid rgba(255,255,255,0.15);position:sticky;top:0;background:var(--navy);z-index:6">Escalão</th>
+            ${grupoHeaders}
+          </tr>
+          <tr style="background:var(--navy)">${repHeaders}</tr>
+          <tr style="background:var(--navy)">${dataHeaders}</tr>
+          <tr style="background:var(--navy)">${subHeaders}</tr>
+        </thead>
+        <tbody>${rows||`<tr><td colspan="${3+totalCols}" style="padding:20px;text-align:center;color:var(--gray)">Sem alunos nesta turma.</td></tr>`}</tbody>
+      </table>
+      ${renderQuadroRefAtletismo()}
+    </div>
+    <div style="font-size:11px;color:var(--gray);margin-top:8px">Preenchimento manual: 3 tentativas por prova, com Data, Resultado e Avaliação para cada. Os valores não são convertidos automaticamente em nota.</div>
+    <div class="modal-actions">
+      <button class="btn" onclick="fecharGrelhaObs()">Fechar</button>
     </div>
   </div></div>`;
 }
@@ -6629,6 +6913,97 @@ function attachEvents(){
         } else if(e.key==='ArrowLeft'){
           e.preventDefault();
           focusGrelhaCell(row,ci-1);
+        }
+      });
+    });
+    // Grelha de Observação — Atletismo (Resultado/Avaliação x3 + Escalão + Data por tentativa)
+    document.querySelectorAll('.grelha-atlet-data-rep').forEach(el=>{
+      el.addEventListener('change',()=>{
+        const di=parseInt(el.dataset.idx);
+        const key=`${modal.turmaId}__${modal.sub}`;
+        if(!S.avaliacao[key]) S.avaliacao[key]={notas:{},obsAlunos:{},ativNotas:{},obs:''};
+        if(!S.avaliacao[key].grelhaObsAtletismo) S.avaliacao[key].grelhaObsAtletismo={};
+        if(!S.avaliacao[key].grelhaObsAtletismo[modal.col]) S.avaliacao[key].grelhaObsAtletismo[modal.col]={datas:Array(PROVAS_ATLETISMO.length*REPS_ATLETISMO).fill(''),alunos:{}};
+        const bloco=S.avaliacao[key].grelhaObsAtletismo[modal.col];
+        if(!bloco.datas) bloco.datas=Array(PROVAS_ATLETISMO.length*REPS_ATLETISMO).fill('');
+        bloco.datas[di]=el.value;
+        save();
+      });
+    });
+    // Recalcula e escreve a Avaliação (I/S/B/MB) de uma célula de Resultado, na linha (tr) correspondente
+    function atualizarAvaliacaoCelula(inputResultado){
+      const row=inputResultado.closest('tr');
+      if(!row) return;
+      const idxAval=parseInt(inputResultado.dataset.idxAval);
+      const prova=inputResultado.dataset.prova;
+      const genero=inputResultado.dataset.genero;
+      const escalaoEl=row.querySelector('.grelha-atlet-escalao');
+      const escalao=escalaoEl?escalaoEl.value:'';
+      const nivel=calcAvaliacaoAtletismo(prova, genero, escalao, inputResultado.value);
+      const avalEl=row.querySelector(`.grelha-atlet-avaliacao[data-idx="${idxAval}"]`);
+      if(avalEl) avalEl.value=nivel;
+      return {idxAval, nivel};
+    }
+    function guardarValorAtletismo(nome, idx, valor){
+      const key=`${modal.turmaId}__${modal.sub}`;
+      if(!S.avaliacao[key]) S.avaliacao[key]={notas:{},obsAlunos:{},ativNotas:{},obs:''};
+      if(!S.avaliacao[key].grelhaObsAtletismo) S.avaliacao[key].grelhaObsAtletismo={};
+      if(!S.avaliacao[key].grelhaObsAtletismo[modal.col]) S.avaliacao[key].grelhaObsAtletismo[modal.col]={datas:Array(PROVAS_ATLETISMO.length*REPS_ATLETISMO).fill(''),alunos:{}};
+      const bloco=S.avaliacao[key].grelhaObsAtletismo[modal.col];
+      if(!bloco.alunos[nome]) bloco.alunos[nome]={escalao:'',valores:Array(PROVAS_ATLETISMO.length*REPS_ATLETISMO*2).fill('')};
+      if(!bloco.alunos[nome].valores) bloco.alunos[nome].valores=Array(PROVAS_ATLETISMO.length*REPS_ATLETISMO*2).fill('');
+      bloco.alunos[nome].valores[idx]=valor;
+    }
+    document.querySelectorAll('.grelha-atlet-escalao').forEach(el=>{
+      el.addEventListener('input',()=>{
+        const nome=el.dataset.nome;
+        const key=`${modal.turmaId}__${modal.sub}`;
+        if(!S.avaliacao[key]) S.avaliacao[key]={notas:{},obsAlunos:{},ativNotas:{},obs:''};
+        if(!S.avaliacao[key].grelhaObsAtletismo) S.avaliacao[key].grelhaObsAtletismo={};
+        if(!S.avaliacao[key].grelhaObsAtletismo[modal.col]) S.avaliacao[key].grelhaObsAtletismo[modal.col]={datas:Array(PROVAS_ATLETISMO.length*REPS_ATLETISMO).fill(''),alunos:{}};
+        const bloco=S.avaliacao[key].grelhaObsAtletismo[modal.col];
+        if(!bloco.alunos[nome]) bloco.alunos[nome]={escalao:'',valores:Array(PROVAS_ATLETISMO.length*REPS_ATLETISMO*2).fill('')};
+        bloco.alunos[nome].escalao=el.value;
+        // Recalcular todas as avaliações desta linha com o novo escalão
+        const row=el.closest('tr');
+        if(row){
+          row.querySelectorAll('.grelha-atlet-resultado').forEach(inputResultado=>{
+            if(inputResultado.value.trim()===''){
+              const idxAval=parseInt(inputResultado.dataset.idxAval);
+              const avalEl=row.querySelector(`.grelha-atlet-avaliacao[data-idx="${idxAval}"]`);
+              if(avalEl) avalEl.value='';
+              guardarValorAtletismo(nome, idxAval, '');
+              return;
+            }
+            const {idxAval,nivel}=atualizarAvaliacaoCelula(inputResultado);
+            guardarValorAtletismo(nome, idxAval, nivel);
+          });
+        }
+        save();
+      });
+    });
+    function focusGrelhaAtletCell(row,idx){
+      if(!row) return;
+      const el=row.querySelector(`.grelha-atlet-resultado[data-idx="${idx}"]`);
+      if(el){ el.focus(); el.select(); }
+    }
+    document.querySelectorAll('.grelha-atlet-resultado').forEach(el=>{
+      el.addEventListener('input',()=>{
+        const nome=el.dataset.nome, idx=parseInt(el.dataset.idx);
+        guardarValorAtletismo(nome, idx, el.value);
+        const {idxAval,nivel}=atualizarAvaliacaoCelula(el);
+        guardarValorAtletismo(nome, idxAval, nivel);
+        save();
+      });
+      el.addEventListener('keydown',(e)=>{
+        const row=el.closest('tr');
+        const idx=parseInt(el.dataset.idx);
+        if(e.key==='Enter'||e.key==='ArrowDown'){
+          e.preventDefault();
+          focusGrelhaAtletCell(row?.nextElementSibling,idx);
+        } else if(e.key==='ArrowUp'){
+          e.preventDefault();
+          focusGrelhaAtletCell(row?.previousElementSibling,idx);
         }
       });
     });
