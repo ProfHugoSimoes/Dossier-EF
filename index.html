@@ -613,6 +613,64 @@ function renderLogin(mode='login'){
 }
 
 const MODALIDADES=['A./H. Avaliação','Andebol','Apresentação','At. PAA','Atletismo','Badminton','Basebol','Basquetebol','BTT','CFG','Corfebol','Dança','Fitescola','Frisbee','Futebol','Ginástica','Greve','Hóquei','Orientação','Outra','Questão Aula','Raquetes Praia','Rugby','Ténis','Ténis de Mesa','Teórica','Voleibol'];
+
+// ===== Grelha de Observação por Modalidade (Atividades Físicas) =====
+function normalizeTitulo(s){
+  return (s||'').toString().toUpperCase().normalize('NFD').replace(/[\u0300-\u036f]/g,'').trim();
+}
+const CRITERIOS_GENERICO=['Critério 1','Critério 2','Critério 3','Critério 4'];
+const CRITERIOS_MODALIDADE={
+  'ANDEBOL':['Passe, receção e remate','Decalagens e ataque no espaço','Transições ofensivas/defensivas','Posicionamento Defensivo'],
+  'BASQUETEBOL':['Passe, receção e lançamento','Tripla Ameaça e Passe e Corte','Ocupação do Espaço','Posicionamento Defensivo'],
+  'BASQUETBOL':['Passe, receção e lançamento','Tripla Ameaça e Passe e Corte','Ocupação do Espaço','Posicionamento Defensivo'],
+  'FUTEBOL':['Passe, receção e remate','Desmarcação e criação de linhas de passe','Cria Equilíbrios','Comunicação'],
+  'VOLEIBOL':['Passe, manchete e serviço','Joga com 3 toques','Bloco','Finalização'],
+  'CORFEBOL':['Passe, receção e lançamento','Linhas de Passe','Ocupação do Espaço Racional','Posicionamento Defensivo'],
+  'FRISBEE':['Lançamento e receção','Desmarcação e Ocupação do Espaço','Tomada de Decisão','Ação Defensiva'],
+  'HOQUEI':['Condução, Passe e receção','Desmarcação e Ocupação do Espaço','Tomada de Decisão','Ação Defensiva'],
+  'SOFTBOL':['Batimento','Passe e Receção','Corrida e Boas Decisões','Ocupação do Espaço'],
+  'RAQUETES':['Serviço','Batimento','Posição Base Fundamental e Deslocamentos','Continuidade e Tomada de Decisão'],
+  'RUGBY':['Passe, receção e Progressão','Apoio ao Portador','Tomada de Decisão','Ação Defensiva'],
+  'ORIENTACAO':['Leitura do Mapa','Orienta o Mapa','Ritmo e Autonomia','Boas Decisões'],
+  'DANCA':['Execução Técnica e Expressão','Ritmo e Musicalidade','Domínio da Coreografia','Ocupação do Espaço com o Grupo'],
+};
+function getCriteriosModalidade(titulo){
+  return CRITERIOS_MODALIDADE[normalizeTitulo(titulo)] || CRITERIOS_GENERICO;
+}
+// Critérios (títulos das colunas) da grelha de observação, editáveis por turma+coluna.
+// O 2º semestre herda sempre os critérios definidos no 1º semestre.
+function getCriteriosGrelha(turmaId, sub, col, titulo){
+  if(!S.avaliacao) S.avaliacao={};
+  const sourceKey=(sub==='sem2')?`${turmaId}__sem1`:`${turmaId}__${sub}`;
+  if(!S.avaliacao[sourceKey]) S.avaliacao[sourceKey]={notas:{},obsAlunos:{},ativNotas:{},obs:''};
+  const src=S.avaliacao[sourceKey];
+  if(!src.grelhaObsCriterios) src.grelhaObsCriterios={};
+  const base=getCriteriosModalidade(titulo);
+  const custom=src.grelhaObsCriterios[col];
+  if(custom&&custom.length===4) return custom;
+  return base;
+}
+// Tabela de conversão Soma dos 4 critérios (0-3 cada, máx 12) -> Nível -> Nota (escala 0-3, passo 0.5)
+function calcNivelGrelha(soma){
+  if(soma<4) return {label:'P. Introdutório', nota:0.5};
+  if(soma<5) return {label:'Introdutório', nota:1};
+  if(soma<8) return {label:'P. Elementar', nota:1.5};
+  if(soma<9) return {label:'Elementar', nota:2};
+  if(soma<11) return {label:'P. Avançado', nota:2.5};
+  return {label:'Avançado', nota:3};
+}
+const ATIV_TITULOS_DEFAULT=['ANDEBOL','BASQUETEBOL','FUTEBOL','VOLEIBOL','GINÁSTICA','DANÇA','ATLETISMO','CORFEBOL','FRISBEE','HÓQUEI','ORIENTAÇÃO','RAQUETES','RUGBY','SOFTBOL'];
+// Títulos das modalidades: o 2º semestre herda sempre os títulos definidos no 1º semestre
+function getAtividadesTitulos(turmaId, sub){
+  if(!S.avaliacao) S.avaliacao={};
+  const sourceKey=(sub==='sem2')?`${turmaId}__sem1`:`${turmaId}__${sub}`;
+  if(!S.avaliacao[sourceKey]) S.avaliacao[sourceKey]={notas:{},obsAlunos:{},ativNotas:{},obs:''};
+  const src=S.avaliacao[sourceKey];
+  if(!src.atividadesTitulos||src.atividadesTitulos.length<14){
+    src.atividadesTitulos=Array(14).fill('').map((_,i)=>src.atividadesTitulos?.[i]||ATIV_TITULOS_DEFAULT[i]||'');
+  }
+  return src.atividadesTitulos;
+}
 const ESPACOS=['G1','E1','G2','E2'];
 const DIAS=['Segunda','Terça','Quarta','Quinta','Sexta'];
 const BLOCOS=['08h20–09h10','09h20–10h10','10h30–11h20','11h30–12h20','12h30–13h20','13h30–14h20','14h30–15h20','15h30–16h20','16h40–17h30','17h40–18h30'];
@@ -1275,6 +1333,50 @@ function importarModalidadesSem1(turmaId){
     attachEvents();
     requestAnimationFrame(()=>{ fixStickyThead(); fixAidStickyMobile(); });
   }
+}
+
+function abrirGrelhaObs(col){
+  if(!filterAvaliacaoTurma){ alert('Selecione uma turma primeiro.'); return; }
+  modal={type:'grelhaObs', turmaId:filterAvaliacaoTurma, sub:filterAvaliacaoSub, col};
+  render();
+}
+
+function fecharGrelhaObs(){
+  modal=null;
+  render();
+}
+
+function exportarGrelhaObs(){
+  if(!modal||modal.type!=='grelhaObs') return;
+  const turma=S.turmas.find(t=>t.id==modal.turmaId);
+  const key=`${modal.turmaId}__${modal.sub}`;
+  const dados=S.avaliacao[key];
+  if(!turma||!dados) return;
+  const grelha=dados.grelhaObs?.[modal.col]||{};
+  const candidatos=turma.alunos.filter(a=>{
+    const nome=typeof a==='string'?a:a.nome;
+    const vals=grelha[nome];
+    return vals&&vals.some(v=>v!==''&&v!==null&&v!==undefined);
+  });
+  if(!candidatos.length){
+    alert('⚠️ Não há critérios preenchidos para exportar nesta grelha.');
+    return;
+  }
+  const titulo=(dados.atividadesTitulos&&dados.atividadesTitulos[modal.col])||`Matéria ${modal.col+1}`;
+  if(!confirm(`Exportar ${candidatos.length} nota(s) calculada(s) para a coluna "${titulo}"?\n\nOs valores existentes nessa coluna para esses alunos serão substituídos.`)) return;
+  if(!dados.ativNotas) dados.ativNotas={};
+  candidatos.forEach(a=>{
+    const nome=typeof a==='string'?a:a.nome;
+    const vals=grelha[nome];
+    const soma=vals.reduce((s,v)=>s+(parseFloat(v)||0),0);
+    const nivel=calcNivelGrelha(soma);
+    if(!dados.ativNotas[nome]) dados.ativNotas[nome]=Array(14).fill('');
+    dados.ativNotas[nome][modal.col]=nivel.nota;
+  });
+  save();
+  modal=null;
+  render();
+  setTimeout(()=>alert(`✅ ${candidatos.length} nota(s) exportada(s) para "${titulo}".`),50);
 }
 
 function calcClassFinal(totalPontos, ano, semestre){
@@ -2171,9 +2273,9 @@ function renderAvaliacaoSub(turma){
   const thN='style="padding:8px 6px;text-align:center;color:#fff;font-weight:600;border:1px solid rgba(255,255,255,0.15);position:sticky;top:0;z-index:4"';
   const thL='style="padding:8px 10px;text-align:left;color:#fff;font-weight:600;border:1px solid rgba(255,255,255,0.15);position:sticky;top:0;z-index:4"';
 
-  // Títulos editáveis das 12 colunas de Atividades Físicas
-  if(!dados.atividadesTitulos||dados.atividadesTitulos.length<14){ const _def=['ANDEBOL','BASQUETEBOL','FUTEBOL','VOLEIBOL','GINÁSTICA','DANÇA','ATLETISMO','CORFEBOL','FRISBEE','HÓQUEI','ORIENTAÇÃO','RAQUETES','RUGBY','SOFTBOL']; dados.atividadesTitulos=Array(14).fill('').map((_,i)=>dados.atividadesTitulos?.[i]||_def[i]||''); }
-  const ativTitulos=dados.atividadesTitulos;
+  // Títulos das 14 colunas de Atividades Físicas — editáveis no 1º Semestre; o 2º Semestre herda-os automaticamente
+  const ativTitulos=getAtividadesTitulos(turma.id, filterAvaliacaoSub);
+  dados.atividadesTitulos=ativTitulos;
 
   const thead=isSem1?`
     <tr style="background:var(--navy)">
@@ -2221,6 +2323,7 @@ function renderAvaliacaoSub(turma){
       ${isSem2 ? '' : ativTitulos.map((t,i)=>`<th style="padding:3px 2px;text-align:center;background:#14532d;border:1px solid rgba(255,255,255,0.1);position:sticky;top:66px;z-index:4">
         <input type="text" class="ativ-titulo" data-idx="${i}" value="${esc(t)}" placeholder="Matéria ${i+1}"
           style="width:70px;background:rgba(255,255,255,0.1);border:1px solid rgba(255,255,255,0.2);border-radius:3px;padding:2px 3px;font-size:10px;font-weight:600;color:#fff;text-align:center">
+        <button type="button" class="btn-grelha-obs" onclick="abrirGrelhaObs(${i})" title="Grelha de observação" style="margin-top:2px;width:70px;font-size:9px;line-height:1.3;padding:2px 1px;background:rgba(255,255,255,0.15);border:1px solid rgba(255,255,255,0.3);border-radius:3px;color:#fff;cursor:pointer">👁️ Obs.</button>
       </th>`).join('')}
       ${!isSem2 ? `
       <th style="padding:6px 4px;text-align:center;color:#e9d5ff;font-weight:700;border:1px solid rgba(255,255,255,0.1);background:#7c3aed;font-size:11px;position:sticky;top:66px;z-index:4">M1</th>
@@ -2247,8 +2350,8 @@ function renderAvaliacaoSub(turma){
       <th style="padding:5px 3px;text-align:center;color:#93c5fd;font-weight:700;border:1px solid rgba(255,255,255,0.1);font-size:10px;background:#1a3560">Atl.</th>
       <th style="padding:5px 3px;text-align:center;color:#fde68a;font-weight:700;border:1px solid rgba(255,255,255,0.1);font-size:10px;background:#1a3560">Pontos<br><small style="font-weight:400;opacity:0.8">(máx 5)</small></th>
       ${ativTitulos.map((t,i)=>`<th style="padding:3px 2px;text-align:center;background:#14532d;border:1px solid rgba(255,255,255,0.1);position:sticky;top:37px;z-index:4">
-        <input type="text" class="ativ-titulo" data-idx="${i}" value="${esc(t)}" placeholder="Matéria ${i+1}"
-          style="width:70px;background:rgba(255,255,255,0.1);border:1px solid rgba(255,255,255,0.2);border-radius:3px;padding:2px 3px;font-size:10px;font-weight:600;color:#fff;text-align:center">
+        <div title="Título definido no 1º Semestre" style="width:70px;min-height:20px;display:flex;align-items:center;justify-content:center;text-align:center;padding:2px 3px;font-size:10px;font-weight:600;color:#fff;margin:0 auto">${esc(t)||`Matéria ${i+1}`}</div>
+        <button type="button" class="btn-grelha-obs" onclick="abrirGrelhaObs(${i})" title="Grelha de observação" style="margin-top:2px;width:70px;font-size:9px;line-height:1.3;padding:2px 1px;background:rgba(255,255,255,0.15);border:1px solid rgba(255,255,255,0.3);border-radius:3px;color:#fff;cursor:pointer">👁️ Obs.</button>
       </th>`).join('')}
       <th style="padding:5px 3px;text-align:center;color:#e9d5ff;font-weight:700;border:1px solid rgba(255,255,255,0.1);font-size:10px;background:#7c3aed">M1</th>
       <th style="padding:5px 3px;text-align:center;color:#e9d5ff;font-weight:700;border:1px solid rgba(255,255,255,0.1);font-size:10px;background:#7c3aed">M2</th>
@@ -4506,8 +4609,70 @@ function renderPlanificacao(){
 }
 
 // === MODAL ===
+function renderGrelhaObsModal(){
+  const turma=S.turmas.find(t=>t.id==modal.turmaId);
+  if(!turma) return '';
+  const sub=modal.sub;
+  const col=modal.col;
+  const key=`${turma.id}__${sub}`;
+  if(!S.avaliacao[key]) S.avaliacao[key]={notas:{},obsAlunos:{},ativNotas:{},obs:''};
+  const dados=S.avaliacao[key];
+  const ativTitulosModal=getAtividadesTitulos(turma.id, sub);
+  dados.atividadesTitulos=ativTitulosModal;
+  const titulo=ativTitulosModal[col]||`Matéria ${col+1}`;
+  const criterios=getCriteriosGrelha(turma.id, sub, col, titulo);
+  if(!dados.grelhaObs) dados.grelhaObs={};
+  if(!dados.grelhaObs[col]) dados.grelhaObs[col]={};
+  const grelha=dados.grelhaObs[col];
+  const semLabel=sub==='sem2'?'2º Semestre':'1º Semestre';
+
+  const rows=turma.alunos.map((a,i)=>{
+    const nome=typeof a==='string'?a:a.nome;
+    const vals=grelha[nome]||['','','',''];
+    const filled=vals.filter(v=>v!==''&&v!==null&&v!==undefined);
+    const soma=vals.reduce((s,v)=>s+(parseFloat(v)||0),0);
+    const nivel=filled.length?calcNivelGrelha(soma):null;
+    const bg=i%2===0?'#f8fafc':'#fff';
+    return `<tr data-nome="${esc(nome)}" style="background:${bg}">
+      <td style="padding:5px 8px;border:1px solid var(--border);text-align:center;color:var(--gray);font-weight:600">${i+1}</td>
+      <td style="padding:5px 10px;border:1px solid var(--border);font-weight:500;color:var(--navy);white-space:nowrap">${esc(nome)}</td>
+      ${[0,1,2,3].map(ci=>`<td style="padding:3px 2px;border:1px solid var(--border);text-align:center;background:#f0fdf4">
+        <input type="number" min="1" max="3" step="1" class="grelha-obs-crit" data-nome="${esc(nome)}" data-ci="${ci}" value="${esc(String(vals[ci]??''))}" placeholder="—"
+          style="width:56px;text-align:center;border:1px solid #86efac;border-radius:4px;padding:3px 2px;font-size:12px;background:transparent;color:#14532d">
+      </td>`).join('')}
+      <td class="grelha-obs-nivel" data-nome="${esc(nome)}" style="padding:5px 8px;border:1px solid var(--border);text-align:center;font-weight:700;font-size:12px;color:#7c3aed;background:#f5f3ff;white-space:nowrap">${nivel?nivel.label:'—'}</td>
+    </tr>`;
+  }).join('');
+
+  return `<div class="modal-overlay" id="modalOverlay"><div class="modal" style="width:95vw;max-width:1040px;max-height:90vh;display:flex;flex-direction:column">
+    <div class="modal-title" style="display:flex;align-items:center;justify-content:space-between;gap:8px">
+      <span>👁️ Grelha de Observação — ${esc(titulo)} <small style="font-weight:400;color:var(--gray)">(${semLabel} · ${esc(turma.nome)})</small></span>
+    </div>
+    <div style="overflow:auto;flex:1;border:1px solid var(--border);border-radius:8px">
+      <table style="width:100%;border-collapse:collapse">
+        <thead><tr style="background:var(--navy)">
+          <th style="padding:8px 6px;text-align:center;color:#fff;font-weight:600;border:1px solid rgba(255,255,255,0.15);position:sticky;top:0;background:var(--navy)">#</th>
+          <th style="padding:8px 10px;text-align:left;color:#fff;font-weight:600;border:1px solid rgba(255,255,255,0.15);position:sticky;top:0;background:var(--navy)">Nome</th>
+          ${criterios.map((c,ci)=>`<th style="padding:6px;text-align:center;color:#fff;font-weight:600;font-size:11px;border:1px solid rgba(255,255,255,0.15);position:sticky;top:0;background:var(--navy);min-width:110px">
+            <input type="text" class="grelha-obs-criterio-titulo" data-ci="${ci}" value="${esc(c)}" title="Editar critério (aplicado ao 1º e 2º semestre)"
+              style="width:100%;box-sizing:border-box;background:rgba(255,255,255,0.12);border:1px solid rgba(255,255,255,0.3);border-radius:4px;color:#fff;font-weight:600;font-size:11px;text-align:center;padding:4px 3px">
+          </th>`).join('')}
+          <th style="padding:8px 6px;text-align:center;color:#fff;font-weight:600;font-size:11px;border:1px solid rgba(255,255,255,0.15);position:sticky;top:0;background:var(--navy)">Nível</th>
+        </tr></thead>
+        <tbody>${rows||'<tr><td colspan="7" style="padding:20px;text-align:center;color:var(--gray)">Sem alunos nesta turma.</td></tr>'}</tbody>
+      </table>
+    </div>
+    <div style="font-size:11px;color:var(--gray);margin-top:8px">Escala 1–3 por critério (números inteiros). Enter ou ↓ avança para a linha seguinte, ↑ recua, ← → mudam de critério. O Nível é calculado automaticamente pela soma dos 4 critérios e, ao exportar, é convertido para a nota da grelha principal (0–3, passo 0.5). Os títulos dos critérios (cabeçalho) são editáveis e ficam guardados para esta modalidade nesta turma; ao editar no 1º Semestre, a alteração é automaticamente aplicada também ao 2º Semestre.</div>
+    <div class="modal-actions">
+      <button class="btn" onclick="fecharGrelhaObs()">Fechar</button>
+      <button class="btn btn-primary" onclick="exportarGrelhaObs()">📤 Exportar para grelha</button>
+    </div>
+  </div></div>`;
+}
+
 function renderModal(){
   if(!modal) return '';
+  if(modal.type==='grelhaObs') return renderGrelhaObsModal();
   if(modal.type==='editAula'){
     const aula=S.horario[modal.slot]||{};
     const weekKey=modal.weekKey||'';
@@ -4984,7 +5149,15 @@ function attachEvents(){
       if(!S.avaliacao[key]) S.avaliacao[key]={notas:{},obsAlunos:{},atividadesTitulos:['ANDEBOL','BASQUETEBOL','FUTEBOL','VOLEIBOL','GINÁSTICA','DANÇA','ATLETISMO','CORFEBOL','FRISBEE','HÓQUEI','ORIENTAÇÃO','RAQUETES','RUGBY','SOFTBOL'],ativNotas:{},obs:''};
       const titulos=Array(14).fill('');
       document.querySelectorAll('.ativ-titulo').forEach(el=>{ titulos[parseInt(el.dataset.idx)]=el.value; });
-      S.avaliacao[key].atividadesTitulos=titulos;
+      if(filterAvaliacaoSub!=='sem2'){
+        S.avaliacao[key].atividadesTitulos=titulos;
+      }
+      if(filterAvaliacaoSub==='sem1'){
+        // O 2º Semestre herda sempre os títulos definidos no 1º Semestre
+        const sem2Key=`${filterAvaliacaoTurma}__sem2`;
+        if(!S.avaliacao[sem2Key]) S.avaliacao[sem2Key]={notas:{},obsAlunos:{},ativNotas:{},obs:''};
+        S.avaliacao[sem2Key].atividadesTitulos=[...titulos];
+      }
       if(!S.avaliacao[key].ativNotas) S.avaliacao[key].ativNotas={};
       document.querySelectorAll('.ativ-nota').forEach(el=>{
         const nome=el.dataset.nome; const col=parseInt(el.dataset.col); const val=el.value.trim();
@@ -6384,6 +6557,82 @@ function attachEvents(){
       }
     });
   });
+  // Grelha de Observação por Modalidade
+  if(modal&&modal.type==='grelhaObs'){
+    function focusGrelhaCell(row,ci){
+      if(!row) return;
+      const el=row.querySelector(`.grelha-obs-crit[data-ci="${ci}"]`);
+      if(el){ el.focus(); el.select(); }
+    }
+    document.querySelectorAll('.grelha-obs-criterio-titulo').forEach(el=>{
+      el.addEventListener('change',()=>{
+        const ci=parseInt(el.dataset.ci);
+        const novoTitulo=el.value.trim();
+        if(!novoTitulo){
+          // não permite ficar vazio: repõe o valor anterior
+          const turma=S.turmas.find(t=>t.id==modal.turmaId);
+          const ativTitulosModal=getAtividadesTitulos(modal.turmaId, modal.sub);
+          const tituloMod=ativTitulosModal[modal.col]||`Matéria ${modal.col+1}`;
+          const criteriosAtuais=getCriteriosGrelha(modal.turmaId, modal.sub, modal.col, tituloMod);
+          el.value=criteriosAtuais[ci];
+          return;
+        }
+        const sourceKey=(modal.sub==='sem2')?`${modal.turmaId}__sem1`:`${modal.turmaId}__${modal.sub}`;
+        if(!S.avaliacao[sourceKey]) S.avaliacao[sourceKey]={notas:{},obsAlunos:{},ativNotas:{},obs:''};
+        const src=S.avaliacao[sourceKey];
+        if(!src.grelhaObsCriterios) src.grelhaObsCriterios={};
+        const turma=S.turmas.find(t=>t.id==modal.turmaId);
+        const ativTitulosModal=getAtividadesTitulos(modal.turmaId, modal.sub);
+        const tituloMod=ativTitulosModal[modal.col]||`Matéria ${modal.col+1}`;
+        const base=getCriteriosGrelha(modal.turmaId, modal.sub, modal.col, tituloMod);
+        const novosCriterios=base.slice();
+        novosCriterios[ci]=novoTitulo;
+        src.grelhaObsCriterios[modal.col]=novosCriterios;
+        save();render();
+      });
+    });
+    document.querySelectorAll('.grelha-obs-crit').forEach(el=>{
+      el.addEventListener('input',()=>{
+        let v=parseFloat(el.value);
+        if(!isNaN(v)){
+          v=Math.round(v);
+          if(v>3) v=3;
+          if(v<1) v=1;
+          el.value=v;
+        }
+        const nome=el.dataset.nome, ci=parseInt(el.dataset.ci);
+        const key=`${modal.turmaId}__${modal.sub}`;
+        if(!S.avaliacao[key]) S.avaliacao[key]={notas:{},obsAlunos:{},ativNotas:{},obs:''};
+        if(!S.avaliacao[key].grelhaObs) S.avaliacao[key].grelhaObs={};
+        if(!S.avaliacao[key].grelhaObs[modal.col]) S.avaliacao[key].grelhaObs[modal.col]={};
+        if(!S.avaliacao[key].grelhaObs[modal.col][nome]) S.avaliacao[key].grelhaObs[modal.col][nome]=['','','',''];
+        S.avaliacao[key].grelhaObs[modal.col][nome][ci]=el.value===''?'':parseFloat(el.value);
+        const vals=S.avaliacao[key].grelhaObs[modal.col][nome];
+        const filled=vals.filter(x=>x!==''&&x!==null&&x!==undefined);
+        const soma=vals.reduce((s,x)=>s+(parseFloat(x)||0),0);
+        const nivelCell=el.closest('tr')?.querySelector('.grelha-obs-nivel');
+        if(nivelCell) nivelCell.textContent=filled.length?calcNivelGrelha(soma).label:'—';
+        save();
+      });
+      el.addEventListener('keydown',(e)=>{
+        const row=el.closest('tr');
+        const ci=parseInt(el.dataset.ci);
+        if(e.key==='Enter'||e.key==='ArrowDown'){
+          e.preventDefault();
+          focusGrelhaCell(row?.nextElementSibling,ci);
+        } else if(e.key==='ArrowUp'){
+          e.preventDefault();
+          focusGrelhaCell(row?.previousElementSibling,ci);
+        } else if(e.key==='ArrowRight'){
+          e.preventDefault();
+          focusGrelhaCell(row,ci+1);
+        } else if(e.key==='ArrowLeft'){
+          e.preventDefault();
+          focusGrelhaCell(row,ci-1);
+        }
+      });
+    });
+  }
   // Mapas de Rotação
   if(currentTab==='rotacao') attachRotacaoEvents();
 }
