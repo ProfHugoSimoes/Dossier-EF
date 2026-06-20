@@ -302,7 +302,7 @@
   /* ── PÁGINA INICIAL MOBILE ──────────────────────────────── */
   .home-screen{display:flex;flex-direction:column;min-height:100vh;background:linear-gradient(160deg,#0f1f3a 0%,#1a2d4a 50%,#1e3a5f 100%);padding:0}
   .home-header{padding:28px 20px 16px;text-align:center}
-  .home-icon{width:80px;height:80px;border-radius:20px;object-fit:cover;margin:0 auto 12px;display:block;box-shadow:0 4px 20px rgba(0,0,0,0.4)}
+  .home-icon{width:56px;height:56px;border-radius:14px;object-fit:cover;margin:0 auto 10px;display:block;box-shadow:0 4px 20px rgba(0,0,0,0.4)}
   .home-title{font-size:22px;font-weight:800;color:#fff;letter-spacing:-0.3px;margin-bottom:2px}
   .home-subtitle{font-size:13px;color:rgba(255,255,255,0.5)}
   .home-user{font-size:12px;color:#60a5fa;margin-top:6px;font-weight:500}
@@ -952,9 +952,9 @@ function renderHome(){
         🔔${_hNAvisos>0?`<span style="background:#fff;color:#dc2626;border-radius:50%;min-width:18px;height:18px;display:inline-flex;align-items:center;justify-content:center;font-size:11px;font-weight:800;padding:0 3px">${_hNAvisos}</span>`:''}
       </button>
       ${S.logo
-        ? `<img class="home-icon" src="${S.logo}" alt="Logotipo">`
-        : `<img class="home-icon" src="icons/icon-192x192.png" alt="Ícone" onerror="this.style.display='none'">`}
-      <div class="home-title">DOSSIER DE EF</div>
+        ? `<img class="home-icon" src="${S.logo}" alt="Logotipo" onclick="renderSplash()" style="cursor:pointer">`
+        : `<img class="home-icon" src="icons/icon-192x192.png" alt="Ícone" onerror="this.style.display='none'" onclick="renderSplash()" style="cursor:pointer">`}
+      <div class="home-title" onclick="renderSplash()" style="cursor:pointer">DOSSIER DE EF</div>
       ${S.professor ? `<div style="font-size:15px;font-weight:600;color:#93c5fd;margin-top:2px">${esc(S.professor)}</div>` : ''}
       <div class="home-user">👤 ${currentUser ? esc(currentUser.email) : ''}</div>
     </div>
