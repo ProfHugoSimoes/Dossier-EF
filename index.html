@@ -50,7 +50,7 @@
   .nav-item{display:flex;align-items:center;gap:10px;padding:11px 18px;cursor:pointer;color:rgba(255,255,255,0.65);font-size:13px;font-weight:500;transition:all 0.15s;border-left:3px solid transparent}
   .nav-item:hover{background:rgba(255,255,255,0.08);color:#fff}
   .nav-item.active{background:rgba(96,165,250,0.15);color:#60a5fa;border-left-color:#60a5fa}
-  .nav-icon{font-size:16px;width:20px;text-align:center}
+  .nav-icon{width:20px;height:20px;display:flex;align-items:center;justify-content:center;flex-shrink:0}
   .sidebar-footer{padding:12px;border-top:1px solid rgba(255,255,255,0.1);display:flex;flex-direction:column;align-items:center;gap:8px}
   .logo-wrapper{width:100%;flex:1;display:flex;align-items:center;justify-content:center;min-height:60px}
   .logo-preview{width:100%;height:auto;max-height:140px;object-fit:contain;border-radius:6px;display:block}
@@ -301,8 +301,8 @@
 
   /* ── PÁGINA INICIAL MOBILE ──────────────────────────────── */
   .home-screen{display:flex;flex-direction:column;min-height:100vh;background:linear-gradient(160deg,#0f1f3a 0%,#1a2d4a 50%,#1e3a5f 100%);padding:0}
-  .home-header{padding:28px 20px 16px;text-align:center}
-  .home-icon{width:44px;height:44px;border-radius:10px;object-fit:contain;margin:0 auto 8px;display:block;box-shadow:0 4px 20px rgba(0,0,0,0.4)}
+  .home-header{padding:10px 20px 12px;text-align:center}
+  .home-icon{width:82px;height:82px;border-radius:16px;object-fit:contain;margin:0 auto 10px;display:block;box-shadow:0 4px 20px rgba(0,0,0,0.4)}
   .home-title{font-size:22px;font-weight:800;color:#fff;letter-spacing:-0.3px;margin-bottom:2px}
   .home-subtitle{font-size:13px;color:rgba(255,255,255,0.5)}
   .home-user{font-size:12px;color:#60a5fa;margin-top:6px;font-weight:500}
@@ -930,16 +930,16 @@ function render(){
 
 function renderHome(){
   const items=[
-    {id:'painel',    icon:'🏠', label:'Painel Principal',  sub:'Visão geral'},
-    {id:'turmas',    icon:'🏫', label:'Turmas',            sub:'Alunos e grupos'},
-    {id:'semanal',   icon:'📅', label:'Plano Semanal',     sub:'Horário e aulas'},
-    {id:'sumarios',  icon:'📝', label:'Sumários e Faltas', sub:'Registos de aula'},
-    {id:'avaliacao', icon:'🎯', label:'Avaliação',         sub:'Notas e Fitescola'},
-    {id:'planificacao',icon:'📊',label:'Planificação',     sub:'Modalidades'},
-    {id:'calendario',icon:'🗓️', label:'Calendário Letivo', sub:'Feriados e pausas'},
-    {id:'reunioes',  icon:'🗣️', label:'Reuniões e Cenas',  sub:'Notas e eventos'},
-    {id:'rotacao',   icon:'🔄', label:'Mapas de Rotação',  sub:'Rotação de espaços'},
-    {id:'torneios',  icon:'🏆', label:'Torneios Intraturma', sub:'Competições de turma'},
+    {id:'painel',    icon:`<span style="color:#60a5fa;display:flex;align-items:center;justify-content:center;width:40px;height:40px"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="7" rx="1.5"/><rect x="14" y="3" width="7" height="7" rx="1.5"/><rect x="3" y="14" width="7" height="7" rx="1.5"/><rect x="14" y="14" width="7" height="7" rx="1.5"/></svg></span>`, label:'Painel Principal',  sub:'Visão geral'},
+    {id:'turmas',    icon:`<span style="color:#34d399;display:flex;align-items:center;justify-content:center;width:40px;height:40px"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="9" cy="7" r="3"/><circle cx="17" cy="9" r="2.5"/><path d="M2 20c0-3.3 3.1-6 7-6s7 2.7 7 6"/><path d="M22 20c0-2.5-2.2-4.5-5-4.5"/></svg></span>`, label:'Turmas',            sub:'Alunos e grupos'},
+    {id:'semanal',   icon:`<span style="color:#a78bfa;display:flex;align-items:center;justify-content:center;width:40px;height:40px"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="2"/><path d="M16 2v4M8 2v4M3 10h18"/><path d="M8 14h.01M12 14h.01M16 14h.01M8 18h.01M12 18h.01"/></svg></span>`, label:'Plano Semanal',     sub:'Horário e aulas'},
+    {id:'sumarios',  icon:`<span style="color:#fb923c;display:flex;align-items:center;justify-content:center;width:40px;height:40px"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/><line x1="10" y1="9" x2="8" y2="9"/></svg></span>`, label:'Sumários e Faltas', sub:'Registos de aula'},
+    {id:'avaliacao', icon:`<span style="color:#f472b6;display:flex;align-items:center;justify-content:center;width:40px;height:40px"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg></span>`, label:'Avaliação',         sub:'Notas e Fitescola'},
+    {id:'planificacao',icon:`<span style="color:#4ade80;display:flex;align-items:center;justify-content:center;width:40px;height:40px"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></svg></span>`,label:'Planificação',     sub:'Modalidades'},
+    {id:'calendario',icon:`<span style="color:#38bdf8;display:flex;align-items:center;justify-content:center;width:40px;height:40px"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="2"/><path d="M16 2v4M8 2v4M3 10h18"/><circle cx="12" cy="16" r="1.5" fill="currentColor"/></svg></span>`, label:'Calendário Letivo', sub:'Feriados e pausas'},
+    {id:'reunioes',  icon:`<span style="color:#fbbf24;display:flex;align-items:center;justify-content:center;width:40px;height:40px"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/><line x1="9" y1="10" x2="15" y2="10"/><line x1="12" y1="7" x2="12" y2="13"/></svg></span>`, label:'Reuniões e Cenas',  sub:'Notas e eventos'},
+    {id:'rotacao',   icon:`<span style="color:#c084fc;display:flex;align-items:center;justify-content:center;width:40px;height:40px"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><polyline points="1 4 1 10 7 10"/><path d="M3.51 15a9 9 0 1 0 .49-3.5"/></svg></span>`, label:'Mapas de Rotação',  sub:'Rotação de espaços'},
+    {id:'torneios',  icon:`<span style="color:#fcd34d;display:flex;align-items:center;justify-content:center;width:40px;height:40px"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9H4.5a2.5 2.5 0 0 1 0-5H6"/><path d="M18 9h1.5a2.5 2.5 0 0 0 0-5H18"/><path d="M4 22h16"/><path d="M10 14.66V17c0 .55-.47.98-.97 1.21C7.85 18.75 7 20.24 7 22"/><path d="M14 14.66V17c0 .55.47.98.97 1.21C16.15 18.75 17 20.24 17 22"/><path d="M18 2H6v7a6 6 0 0 0 12 0V2z"/></svg></span>`, label:'Torneios Intraturma', sub:'Competições de turma'},
   ];
   const _hAvisos=calcAvisos();
   const _hNAvisos=_hAvisos.length;
@@ -948,15 +948,13 @@ function renderHome(){
     : 'background:rgba(255,255,255,0.1);color:rgba(255,255,255,0.7);border:1px solid rgba(255,255,255,0.2)';
   return `<div class="home-screen">
     <div class="home-header" style="position:relative">
-      <button id="homeAvisosBtn" style="${_hBtnStyle};position:absolute;top:20px;right:16px;padding:10px 14px;border-radius:10px;font-size:22px;cursor:pointer;line-height:1;display:${_hNAvisos>0?'flex':'none'};align-items:center;gap:6px">
+      <button id="homeAvisosBtn" style="${_hBtnStyle};position:absolute;top:10px;right:10px;padding:10px 14px;border-radius:10px;font-size:22px;cursor:pointer;line-height:1;display:${_hNAvisos>0?'flex':'none'};align-items:center;gap:6px">
         🔔${_hNAvisos>0?`<span style="background:#fff;color:#dc2626;border-radius:50%;min-width:18px;height:18px;display:inline-flex;align-items:center;justify-content:center;font-size:11px;font-weight:800;padding:0 3px">${_hNAvisos}</span>`:''}
       </button>
       ${S.logo
-        ? `<img class="home-icon" src="${S.logo}" alt="Logotipo" onclick="renderSplash()" style="cursor:pointer">`
-        : `<img class="home-icon" src="icons/icon-192x192.png" alt="Ícone" onerror="this.style.display='none'" onclick="renderSplash()" style="cursor:pointer">`}
+        ? `<div style="border-radius:16px;border:1px solid rgba(255,255,255,0.12);background:transparent;display:inline-flex;align-items:center;justify-content:center;margin:0 auto 10px;cursor:pointer;overflow:hidden" onclick="renderSplash()"><img src="${S.logo}" alt="Logotipo" style="max-width:140px;max-height:90px;width:auto;height:auto;object-fit:contain;display:block"></div>`
+        : `<div style="width:82px;height:82px;border-radius:16px;border:1px solid rgba(255,255,255,0.12);background:rgba(255,255,255,0.07);display:flex;align-items:center;justify-content:center;margin:0 auto 10px;cursor:pointer" onclick="renderSplash()"><img src="icons/icon-192x192.png" alt="Ícone" style="width:70%;height:70%;object-fit:contain" onerror="this.style.display='none'"></div>`}
       <div class="home-title" onclick="renderSplash()" style="cursor:pointer">DOSSIER DE EF</div>
-      ${S.professor ? `<div style="font-size:15px;font-weight:600;color:#93c5fd;margin-top:2px">${esc(S.professor)}</div>` : ''}
-      <div class="home-user">👤 ${currentUser ? esc(currentUser.email) : ''}</div>
     </div>
     <div class="home-grid">
       ${items.map(i=>`
@@ -969,6 +967,7 @@ function renderHome(){
     <div class="home-footer">
       <div class="home-escola">${esc(S.escola||'')}</div>
       <div class="home-ano">Ano letivo ${esc(S.anoLetivo||'')}</div>
+      <div class="home-user" style="margin-bottom:8px">👤 ${currentUser ? esc(currentUser.email) : ''}</div>
       <button class="home-logout" id="homeLogoutBtn">🚪 Terminar sessão</button>
       <div style="margin-top:8px;text-align:center;line-height:1.3">
         <div style="font-size:10px;color:rgba(255,255,255,0.55);letter-spacing:0.5px;text-transform:uppercase">Desenvolvido por</div>
@@ -1037,16 +1036,16 @@ function renderHeader(){
 
 function renderSidebar(){
   const items=[
-    {id:'painel',icon:'🏠',label:'Painel Principal'},
-    {id:'turmas',icon:'🏫',label:'Turmas'},
-    {id:'calendario',icon:'🗓️',label:'Calendário Letivo'},
-    {id:'planificacao',icon:'📊',label:'Planificação'},
-    {id:'semanal',icon:'📅',label:'Plano Semanal'},
-    {id:'sumarios',icon:'📝',label:'Sumários e Faltas'},
-    {id:'avaliacao',icon:'🎯',label:'Avaliação'},
-    {id:'reunioes',icon:'🗣️',label:'Reuniões e Cenas'},
-    {id:'rotacao', icon:'🔄',label:'Mapas de Rotação'},
-    {id:'torneios',icon:'🏆',label:'Torneios Intraturma'},
+    {id:'painel',icon:`<svg viewBox="0 0 24 24" fill="none" stroke="#60a5fa" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" width="16" height="16"><rect x="3" y="3" width="7" height="7" rx="1.5"/><rect x="14" y="3" width="7" height="7" rx="1.5"/><rect x="3" y="14" width="7" height="7" rx="1.5"/><rect x="14" y="14" width="7" height="7" rx="1.5"/></svg>`,label:'Painel Principal'},
+    {id:'turmas',icon:`<svg viewBox="0 0 24 24" fill="none" stroke="#34d399" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" width="16" height="16"><circle cx="9" cy="7" r="3"/><circle cx="17" cy="9" r="2.5"/><path d="M2 20c0-3.3 3.1-6 7-6s7 2.7 7 6"/><path d="M22 20c0-2.5-2.2-4.5-5-4.5"/></svg>`,label:'Turmas'},
+    {id:'calendario',icon:`<svg viewBox="0 0 24 24" fill="none" stroke="#38bdf8" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" width="16" height="16"><rect x="3" y="4" width="18" height="18" rx="2"/><path d="M16 2v4M8 2v4M3 10h18"/><circle cx="12" cy="16" r="1.5" fill="#38bdf8"/></svg>`,label:'Calendário Letivo'},
+    {id:'planificacao',icon:`<svg viewBox="0 0 24 24" fill="none" stroke="#4ade80" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" width="16" height="16"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></svg>`,label:'Planificação'},
+    {id:'semanal',icon:`<svg viewBox="0 0 24 24" fill="none" stroke="#a78bfa" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" width="16" height="16"><rect x="3" y="4" width="18" height="18" rx="2"/><path d="M16 2v4M8 2v4M3 10h18"/><path d="M8 14h.01M12 14h.01M16 14h.01M8 18h.01M12 18h.01"/></svg>`,label:'Plano Semanal'},
+    {id:'sumarios',icon:`<svg viewBox="0 0 24 24" fill="none" stroke="#fb923c" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" width="16" height="16"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/><line x1="10" y1="9" x2="8" y2="9"/></svg>`,label:'Sumários e Faltas'},
+    {id:'avaliacao',icon:`<svg viewBox="0 0 24 24" fill="none" stroke="#f472b6" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" width="16" height="16"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>`,label:'Avaliação'},
+    {id:'reunioes',icon:`<svg viewBox="0 0 24 24" fill="none" stroke="#fbbf24" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" width="16" height="16"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/><line x1="9" y1="10" x2="15" y2="10"/><line x1="12" y1="7" x2="12" y2="13"/></svg>`,label:'Reuniões e Cenas'},
+    {id:'rotacao', icon:`<svg viewBox="0 0 24 24" fill="none" stroke="#c084fc" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" width="16" height="16"><polyline points="1 4 1 10 7 10"/><path d="M3.51 15a9 9 0 1 0 .49-3.5"/></svg>`,label:'Mapas de Rotação'},
+    {id:'torneios',icon:`<svg viewBox="0 0 24 24" fill="none" stroke="#fcd34d" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" width="16" height="16"><path d="M6 9H4.5a2.5 2.5 0 0 1 0-5H6"/><path d="M18 9h1.5a2.5 2.5 0 0 0 0-5H18"/><path d="M4 22h16"/><path d="M10 14.66V17c0 .55-.47.98-.97 1.21C7.85 18.75 7 20.24 7 22"/><path d="M14 14.66V17c0 .55.47.98.97 1.21C16.15 18.75 17 20.24 17 22"/><path d="M18 2H6v7a6 6 0 0 0 12 0V2z"/></svg>`,label:'Torneios Intraturma'},
   ];
   return `<div class="sidebar">
     <div class="nav-items">${items.map(i=>`<div class="nav-item${currentTab===i.id?' active':''}" data-tab="${i.id}"><span class="nav-icon">${i.icon}</span>${i.label}</div>`).join('')}</div>
