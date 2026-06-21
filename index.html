@@ -517,6 +517,17 @@ async function syncFromDB(){
   if(_saveTimer !== null) return; // save pendente — ignorar
   if(!_lastSavedAt) return; // ainda não guardámos — ignorar
   try{
+    // 1) Verificar primeiro só a data de atualização (alguns bytes, não o JSON todo).
+    //    Isto corre a cada 15s, por isso é essencial não puxar o "dados" completo
+    //    sempre que não há nada de novo (o caso normal, quase sempre).
+    const { data: meta } = await supa.from('dossier_data')
+      .select('updated_at')
+      .eq('user_id', currentUser.id)
+      .eq('ano_letivo', S.anoLetivo)
+      .single();
+    if(!meta || meta.updated_at <= _lastSavedAt) return; // nada de novo — não buscar o resto
+
+    // 2) Só agora, havendo mesmo algo novo, vai buscar o JSON completo
     const row = await loadRowFromDB(S.anoLetivo);
     if(!row) return;
     if(row.updated_at <= _lastSavedAt) return; // nada de novo
