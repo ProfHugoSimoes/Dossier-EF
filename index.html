@@ -139,6 +139,21 @@
   .horario-table td{border:1px solid var(--border);padding:4px;text-align:center;vertical-align:middle}
   .horario-select{border:none;background:transparent;font-size:11px;color:var(--navy);cursor:pointer;width:100%;text-align:center;padding:2px}
 
+  /* Configurações Modal */
+  .cfg-modal-overlay{position:fixed;inset:0;background:rgba(0,0,0,0.45);z-index:900;display:flex;align-items:center;justify-content:center}
+  .cfg-modal{background:#fff;border-radius:12px;padding:24px;width:520px;max-width:95vw;max-height:90vh;overflow-y:auto;box-shadow:0 8px 32px rgba(0,0,0,0.18)}
+  .cfg-modal-title{font-size:16px;font-weight:700;color:var(--navy);margin-bottom:18px;display:flex;align-items:center;gap:8px}
+  .cfg-section{margin-bottom:20px}
+  .cfg-section-label{font-size:11px;font-weight:700;color:var(--gray);text-transform:uppercase;letter-spacing:0.6px;margin-bottom:10px;padding-bottom:6px;border-bottom:1px solid var(--border)}
+  .cfg-row{display:flex;align-items:center;gap:10px;margin-bottom:10px;flex-wrap:wrap}
+  .cfg-label{font-size:12px;font-weight:600;color:var(--navy);min-width:160px;flex-shrink:0}
+  .cfg-input{border:1px solid var(--border);border-radius:6px;padding:7px 10px;font-size:13px;outline:none;transition:border 0.15s;flex:1;min-width:0}
+  .cfg-input:focus{border-color:var(--blue)}
+  .cfg-toggle{display:flex;gap:0;border:1px solid var(--border);border-radius:7px;overflow:hidden}
+  .cfg-toggle-btn{padding:7px 18px;cursor:pointer;font-size:12px;font-weight:500;background:var(--card);color:var(--gray);border:none;transition:all 0.15s;white-space:nowrap}
+  .cfg-toggle-btn.active{background:var(--navy);color:#fff}
+  .cfg-modal-footer{display:flex;justify-content:flex-end;gap:8px;margin-top:20px;padding-top:16px;border-top:1px solid var(--border)}
+
   /* Planificação */
   .plan-table{width:100%;border-collapse:collapse;font-size:12px}
   .plan-table th{background:var(--navy);color:#fff;padding:7px 10px;text-align:center;font-size:11px;font-weight:600}
@@ -590,6 +605,10 @@ async function initApp(){
   if(!s.reunioes) s.reunioes=[];
   if(!s.avisosLidos) s.avisosLidos={};
   if(!s.avisosEliminados) s.avisosEliminados={};
+  if(!s.config) s.config={modoPeriodos:'semestres',feriadoMunicipalData:'',feriadoMunicipalNome:'',incluirFeriadoMunicipal:false};
+  if(s.config&&!s.config.modoPeriodos) s.config.modoPeriodos='semestres';
+  // Preencher datas de períodos no calendário se não existirem
+  if(s.calendario&&!s.calendario.fim1p){ const [,ano2]=(s.anoLetivo||'2025/2026').split('/').map(Number); s.calendario.fim1p=`${ano2-1}-12-18`; s.calendario.fim2p=`${ano2}-03-28`; }
 
   S = s;
   saveGlobal({ escola:S.escola||'', professor:S.professor||'', logo:S.logo||'', anoLetivo:S.anoLetivo||anoAtivo });
@@ -916,6 +935,7 @@ function calcCurrentWeekOffset(){
 let currentWeekOffset=0; // inicializado após login via initApp()
 let filterSemestre='all';
 let modal=null;
+let cfgModalOpen=false;
 
 function render(){
   if(!S || !currentUser) return; // aguardar login
@@ -934,7 +954,7 @@ function render(){
   document.body.style.overflow='hidden';
   document.body.style.height='100vh';
   app.style.height='100vh';
-  app.innerHTML=`${renderHeader()}<div class="body">${renderSidebar()}<div class="main" id="main-content">${renderTab()}</div></div>${modal?renderModal():''}`;
+  app.innerHTML=`${renderHeader()}<div class="body">${renderSidebar()}<div class="main" id="main-content">${renderTab()}</div></div>${modal?renderModal():''}${cfgModalOpen?renderCfgModal():''}`;  
   attachEvents();
   requestAnimationFrame(()=>{ fixStickyThead(); fixAidStickyMobile(); });
 }
@@ -3214,9 +3234,12 @@ function renderPainel(){
   return `<div>
     <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px">
       <div class="section-title" style="margin:0">Painel Principal — ${esc(S.anoLetivo)}</div>
+      <div style="display:flex;align-items:center;gap:10px">
+      <button class="btn btn-primary" id="openCfgBtn" style="display:inline-flex;align-items:center">⚙️ Configurações da Escola</button>
       <button class="btn" id="avisosBtn" style="${_btnStyle};position:relative;font-weight:700;font-size:15px;padding:10px 20px;border-radius:10px;letter-spacing:0.2px;display:${isMobile()?'none':'inline-flex'};align-items:center">
         🔔 Avisos${_nAvisos>0?` <span style="background:#fff;color:#dc2626;border-radius:50%;min-width:22px;height:22px;display:inline-flex;align-items:center;justify-content:center;font-size:12px;font-weight:800;margin-left:6px;padding:0 4px">${_nAvisos}</span>`:''}
       </button>
+      </div>
     </div>
     <div class="grid-4" style="margin-bottom:20px">
       ${[
@@ -4443,6 +4466,72 @@ function renderCalendario(){
   </div>`;
 }
 
+// === CONFIGURAÇÕES MODAL ===
+function renderCfgModal(){
+  const cfg=S.config||{};
+  const modo=cfg.modoPeriodos||'semestres';
+  return `<div class="cfg-modal-overlay" id="cfgModalOverlay">
+    <div class="cfg-modal">
+      <div class="cfg-modal-title">⚙️ Configurações da Escola</div>
+
+      <div class="cfg-section">
+        <div class="cfg-section-label">Identificação</div>
+        <div class="cfg-row">
+          <div class="cfg-label">Nome da escola</div>
+          <input class="cfg-input" id="cfgEscola" value="${esc(S.escola||'')}" placeholder="Ex: Escola Secundária do Bocage">
+        </div>
+        <div class="cfg-row">
+          <div class="cfg-label">Nome do professor</div>
+          <input class="cfg-input" id="cfgProfessor" value="${esc(S.professor||'')}" placeholder="Nome do Professor">
+        </div>
+      </div>
+
+      <div class="cfg-section">
+        <div class="cfg-section-label">Estrutura do Ano Letivo</div>
+        <div class="cfg-row">
+          <div class="cfg-label">Regime de avaliação</div>
+          <div class="cfg-toggle">
+            <button class="cfg-toggle-btn${modo==='semestres'?' active':''}" data-modo="semestres">2 Semestres</button>
+            <button class="cfg-toggle-btn${modo==='periodos'?' active':''}" data-modo="periodos">3 Períodos</button>
+          </div>
+        </div>
+        <div style="font-size:11px;color:var(--gray);margin-top:-4px;margin-bottom:2px;padding-left:170px">
+          ${modo==='periodos'
+            ? 'Três períodos. Configure o fim de cada período no calendário.'
+            : 'Dois semestres. Configure o fim do 1º semestre no calendário.'}
+        </div>
+      </div>
+
+      <div class="cfg-section">
+        <div class="cfg-section-label">Feriado Municipal</div>
+        <div class="cfg-row">
+          <div class="cfg-label">Incluir feriado municipal</div>
+          <label style="display:flex;align-items:center;gap:8px;cursor:pointer;font-size:13px">
+            <input type="checkbox" id="cfgIncluirFerMun" ${cfg.incluirFeriadoMunicipal?'checked':''} style="width:16px;height:16px;cursor:pointer">
+            Sim
+          </label>
+        </div>
+        <div id="ferMunFields" style="display:${cfg.incluirFeriadoMunicipal?'block':'none'}">
+          <div class="cfg-row">
+            <div class="cfg-label">Data (MM-DD)</div>
+            <input class="cfg-input" id="cfgFerMunData" value="${esc(cfg.feriadoMunicipalData||'')}" placeholder="Ex: 09-15" style="max-width:120px">
+            <span style="font-size:11px;color:var(--gray)">formato MM-DD, aplicado ao ano letivo</span>
+          </div>
+          <div class="cfg-row">
+            <div class="cfg-label">Designação</div>
+            <input class="cfg-input" id="cfgFerMunNome" value="${esc(cfg.feriadoMunicipalNome||'')}" placeholder="Ex: Feriado Municipal de Setúbal">
+          </div>
+        </div>
+      </div>
+
+      <div class="cfg-modal-footer">
+        <button class="btn" id="closeCfgBtn">Cancelar</button>
+        <button class="btn btn-primary" id="saveCfgBtn">💾 Guardar Configurações</button>
+      </div>
+    </div>
+  </div>`;
+}
+
 // === PLANIFICAÇÃO ===
 function renderPlanificacao(){
   const todasMods=[...MODALIDADES].sort((a,b)=>a.localeCompare(b,'pt'));
@@ -5178,7 +5267,23 @@ function isFeriadoOrPausa(dt){
   if(S.pausasIntervalos&&S.pausasIntervalos.some(p=>dt>=p.inicio&&dt<=p.fim)) return true;
   return false;
 }
-function getSemestre(dt){const cal=S.calendario;if(!cal||!cal.fim1s)return 1;return dt<=cal.fim1s?1:2;}
+function getNumPeriodos(){ return (S && S.config && S.config.modoPeriodos === 'periodos') ? 3 : 2; }
+function getLabelPeriodo(n){ return getNumPeriodos()===3 ? n+'º Período' : n+'º Semestre'; }
+
+function getSemestre(dt){
+  const cal=S.calendario;
+  if(!cal||!cal.inicio) return 1;
+  if(getNumPeriodos()===3){
+    const f1=cal.fim1p||cal.fim1s||'';
+    const f2=cal.fim2p||'';
+    if(!f1) return 1;
+    if(dt<=f1) return 1;
+    if(!f2||dt<=f2) return 2;
+    return 3;
+  }
+  if(!cal.fim1s) return 1;
+  return dt<=cal.fim1s?1:2;
+}
 
 // === EVENTS ===
 function attachEvents(){
@@ -5275,6 +5380,62 @@ function attachEvents(){
   });
 
   // Painel
+  // Configurações Modal
+  const openCfgBtn=document.getElementById('openCfgBtn');
+  if(openCfgBtn) openCfgBtn.addEventListener('click',()=>{ cfgModalOpen=true; render(); });
+
+  const cfgModalOverlay=document.getElementById('cfgModalOverlay');
+  if(cfgModalOverlay){
+    cfgModalOverlay.addEventListener('click',e=>{ if(e.target===cfgModalOverlay){cfgModalOpen=false;render();} });
+  }
+  const closeCfgBtn=document.getElementById('closeCfgBtn');
+  if(closeCfgBtn) closeCfgBtn.addEventListener('click',()=>{ cfgModalOpen=false; render(); });
+
+  document.querySelectorAll('.cfg-toggle-btn[data-modo]').forEach(btn=>{
+    btn.addEventListener('click',()=>{
+      if(!S.config) S.config={};
+      S.config.modoPeriodos=btn.dataset.modo;
+      document.querySelectorAll('.cfg-toggle-btn[data-modo]').forEach(b=>b.classList.toggle('active',b.dataset.modo===btn.dataset.modo));
+      const infoEl=btn.closest('.cfg-section')?.querySelector('div[style*="padding-left"]');
+      if(infoEl) infoEl.textContent=btn.dataset.modo==='periodos'
+        ?'Três períodos. Configure o fim de cada período no calendário.'
+        :'Dois semestres. Configure o fim do 1º semestre no calendário.';
+    });
+  });
+
+  const cfgIncluirFerMun=document.getElementById('cfgIncluirFerMun');
+  if(cfgIncluirFerMun){
+    cfgIncluirFerMun.addEventListener('change',()=>{
+      const fields=document.getElementById('ferMunFields');
+      if(fields) fields.style.display=cfgIncluirFerMun.checked?'block':'none';
+    });
+  }
+
+  const saveCfgBtn=document.getElementById('saveCfgBtn');
+  if(saveCfgBtn) saveCfgBtn.addEventListener('click',()=>{
+    if(!S.config) S.config={};
+    const escola=document.getElementById('cfgEscola')?.value||'';
+    const professor=document.getElementById('cfgProfessor')?.value||'';
+    const incluirFerMun=document.getElementById('cfgIncluirFerMun')?.checked||false;
+    const ferMunData=document.getElementById('cfgFerMunData')?.value||'';
+    const ferMunNome=document.getElementById('cfgFerMunNome')?.value||'';
+    S.escola=escola;
+    S.professor=professor;
+    S.config.incluirFeriadoMunicipal=incluirFerMun;
+    S.config.feriadoMunicipalData=ferMunData;
+    S.config.feriadoMunicipalNome=ferMunNome;
+    const sn=document.getElementById('schoolName'); if(sn) sn.value=escola;
+    const pn=document.getElementById('profName'); if(pn) pn.value=professor;
+    cfgModalOpen=false;
+    save();
+    render();
+    const toast=document.createElement('div');
+    toast.textContent='✅ Configurações guardadas';
+    toast.style.cssText='position:fixed;bottom:24px;left:50%;transform:translateX(-50%);background:#1a2d4a;color:#fff;padding:10px 20px;border-radius:8px;font-size:13px;font-weight:600;z-index:9999;box-shadow:0 4px 12px rgba(0,0,0,0.2)';
+    document.body.appendChild(toast);
+    setTimeout(()=>toast.remove(),2200);
+  });
+
   const avisosBtn=document.getElementById('avisosBtn');
   if(avisosBtn) avisosBtn.addEventListener('click',()=>{currentTab='avisos';render();});
   const avisosVoltarBtn=document.getElementById('avisosVoltarBtn');
