@@ -4383,17 +4383,30 @@ function renderSumarioRow(a,turma){
 // === CALENDÁRIO ===
 function renderCalendario(){
   const cal=S.calendario;
+  const cfg=S.config||{};
+  const modo=cfg.modoPeriodos||'semestres';
+  const is3p=(modo==='periodos');
+
   return `<div>
-    <div class="section-title">Calendário Letivo</div>
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px;flex-wrap:wrap;gap:10px">
+      <div class="section-title" style="margin-bottom:0">Calendário Letivo</div>
+    </div>
     <div class="grid-2 cal-layout" style="gap:20px;align-items:start">
       <div>
         <div class="card">
           <div style="font-size:14px;font-weight:700;color:var(--navy);margin-bottom:14px">📅 Datas Principais</div>
           <div class="cal-section"><div class="cal-label">Início do Ano Letivo</div>
             <input type="date" class="cal-input" id="calInicio" value="${cal.inicio||''}"></div>
+          ${is3p ? `
+          <div class="cal-section"><div class="cal-label">Final do 1º Período</div>
+            <input type="date" class="cal-input" id="calFim1p" value="${cal.fim1p||''}"></div>
+          <div class="cal-section"><div class="cal-label">Final do 2º Período</div>
+            <input type="date" class="cal-input" id="calFim2p" value="${cal.fim2p||''}"></div>
+          ` : `
           <div class="cal-section"><div class="cal-label">Final do 1º Semestre</div>
             <input type="date" class="cal-input" id="calFim1s" value="${cal.fim1s||''}"></div>
-          <div style="font-size:12px;font-weight:700;color:var(--navy);margin:14px 0 8px">Final do 2º Semestre por Ano</div>
+          `}
+          <div style="font-size:12px;font-weight:700;color:var(--navy);margin:14px 0 8px">Final do ${is3p?'3º Período':'2º Semestre'} por Ano</div>
           ${ANOS_ESC.map(a=>`<div style="display:flex;align-items:center;gap:10px;margin-bottom:8px">
             <div style="font-size:12px;font-weight:600;color:var(--gray);min-width:32px">${a}</div>
             <input type="date" class="cal-input" data-ano="${a}" value="${(cal.fimAnos&&cal.fimAnos[a])||''}" style="flex:1">
@@ -4403,7 +4416,7 @@ function renderCalendario(){
         <div class="card" style="margin-top:16px">
           <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px">
             <div style="font-size:14px;font-weight:700;color:var(--navy)">🚫 Feriados</div>
-            <button class="btn btn-sm" id="reporFeriadosBtn" title="Repõe os feriados nacionais de Portugal 2025-2026 + feriado municipal de Setúbal">↺ Repor feriados oficiais</button>
+            <button class="btn btn-sm" id="reporFeriadosBtn" title="Repõe os feriados nacionais de Portugal">↺ Repor feriados oficiais</button>
           </div>
           <div style="display:flex;gap:8px;margin-bottom:12px">
             <input type="date" class="cal-input" id="novoFeriado" style="flex:1">
@@ -4413,6 +4426,29 @@ function renderCalendario(){
           ${S.feriados.length===0?'<div style="color:var(--gray);font-size:12px">Nenhum feriado adicionado.</div>':''}
         </div>
         <div class="card" style="margin-top:16px">
+          <div style="font-size:14px;font-weight:700;color:var(--navy);margin-bottom:12px">⏸️ Pausas Letivas</div>
+          <p style="font-size:11px;color:var(--gray);margin-bottom:10px">Defina um intervalo de datas (início e fim inclusive). Todos os dias desse intervalo serão tratados como não letivos.</p>
+          <div style="display:flex;gap:8px;align-items:center;margin-bottom:12px;flex-wrap:wrap">
+            <div style="display:flex;align-items:center;gap:6px;flex:1;min-width:160px">
+              <span style="font-size:11px;font-weight:600;color:var(--gray);white-space:nowrap">De</span>
+              <input type="date" class="cal-input" id="pausaInicio" style="flex:1">
+            </div>
+            <div style="display:flex;align-items:center;gap:6px;flex:1;min-width:160px">
+              <span style="font-size:11px;font-weight:600;color:var(--gray);white-space:nowrap">Até</span>
+              <input type="date" class="cal-input" id="pausaFim" style="flex:1">
+            </div>
+            <button class="btn btn-primary" id="addPausaBtn">+ Adicionar</button>
+          </div>
+          <div class="feriados-list">
+            ${(S.pausasIntervalos||[]).map((p,i)=>`
+              <span class="feriado-tag" style="background:var(--amber2);color:var(--amber)">
+                ${fmtDate(p.inicio)} → ${fmtDate(p.fim)}
+                <button data-pausa="${i}" title="Remover" style="color:var(--amber)">×</button>
+              </span>`).join('')}
+          </div>
+          ${!(S.pausasIntervalos&&S.pausasIntervalos.length)?'<div style="color:var(--gray);font-size:12px">Nenhuma pausa adicionada.</div>':''}
+        </div>
+      </div>
           <div style="font-size:14px;font-weight:700;color:var(--navy);margin-bottom:12px">⏸️ Pausas Letivas</div>
           <p style="font-size:11px;color:var(--gray);margin-bottom:10px">Defina um intervalo de datas (início e fim inclusive). Todos os dias desse intervalo serão tratados como não letivos.</p>
           <div style="display:flex;gap:8px;align-items:center;margin-bottom:12px;flex-wrap:wrap">
@@ -6733,13 +6769,24 @@ function attachEvents(){
   // Calendário
   const saveCalBtn=document.getElementById('saveCalBtn');
   if(saveCalBtn) saveCalBtn.addEventListener('click',()=>{
-    const i=document.getElementById('calInicio');const f=document.getElementById('calFim1s');
-    if(i) S.calendario.inicio=i.value;if(f) S.calendario.fim1s=f.value;
+    const i=document.getElementById('calInicio');
+    const f1s=document.getElementById('calFim1s');
+    const f1p=document.getElementById('calFim1p');
+    const f2p=document.getElementById('calFim2p');
+    if(i) S.calendario.inicio=i.value;
+    if(f1s) S.calendario.fim1s=f1s.value;
+    if(f1p) S.calendario.fim1p=f1p.value;
+    if(f2p) S.calendario.fim2p=f2p.value;
     document.querySelectorAll('[data-ano]').forEach(el=>{
       if(!S.calendario.fimAnos) S.calendario.fimAnos={};
       S.calendario.fimAnos[el.dataset.ano]=el.value;
     });
-    save();render();alert('Calendário guardado com sucesso!');
+    save();render();
+    const toast=document.createElement('div');
+    toast.textContent='✅ Calendário guardado';
+    toast.style.cssText='position:fixed;bottom:24px;left:50%;transform:translateX(-50%);background:#1a2d4a;color:#fff;padding:10px 20px;border-radius:8px;font-size:13px;font-weight:600;z-index:9999;box-shadow:0 4px 12px rgba(0,0,0,0.2)';
+    document.body.appendChild(toast);
+    setTimeout(()=>toast.remove(),2000);
   });
   const addFeriadoBtn=document.getElementById('addFeriadoBtn');
   if(addFeriadoBtn) addFeriadoBtn.addEventListener('click',()=>{
