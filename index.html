@@ -586,7 +586,7 @@ async function initApp(){
   }
   if(!s) s = createFreshState(anoAtivo, g.escola||'', g.logo||'', g.professor||'');
 
-  // Garantir campos
+  // Garantir campos — usar dossier_global apenas como fallback (não sobrescrever dados próprios do ano)
   if(!s.professor) s.professor = g.professor||'';
   if(!s.escola)    s.escola    = g.escola||'';
   if(!s.logo)      s.logo      = g.logo||'';
@@ -5356,7 +5356,10 @@ function attachEvents(){
       _lastSavedAt = novoRow.updated_at;
     }
     if(!novo) novo = createFreshState(novoAno, escola, logo, professor);
-    novo.escola=escola; novo.logo=logo; novo.professor=professor;
+    // Só copiar escola/logo/professor se o novo ano ainda não tiver esses dados próprios
+    if(!novo.escola) novo.escola=escola;
+    if(!novo.logo) novo.logo=logo;
+    if(!novo.professor) novo.professor=professor;
     S=novo;
     currentTab='painel';
     filterTurma='all';
