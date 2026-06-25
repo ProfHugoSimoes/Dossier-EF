@@ -50,7 +50,7 @@
   .nav-item{display:flex;align-items:center;gap:10px;padding:11px 18px;cursor:pointer;color:rgba(255,255,255,0.65);font-size:13px;font-weight:500;transition:all 0.15s;border-left:3px solid transparent}
   .nav-item:hover{background:rgba(255,255,255,0.08);color:#fff}
   .nav-item.active{background:rgba(96,165,250,0.15);color:#60a5fa;border-left-color:#60a5fa}
-  .nav-icon{width:20px;height:20px;display:flex;align-items:center;justify-content:center;flex-shrink:0}
+  .nav-icon{font-size:16px;width:20px;text-align:center}
   .sidebar-footer{padding:12px;border-top:1px solid rgba(255,255,255,0.1);display:flex;flex-direction:column;align-items:center;gap:8px}
   .logo-wrapper{width:100%;flex:1;display:flex;align-items:center;justify-content:center;min-height:60px}
   .logo-preview{width:100%;height:auto;max-height:140px;object-fit:contain;border-radius:6px;display:block}
@@ -138,21 +138,6 @@
   .horario-table th{background:var(--navy);color:#fff;padding:7px 10px;text-align:center;font-size:11px}
   .horario-table td{border:1px solid var(--border);padding:4px;text-align:center;vertical-align:middle}
   .horario-select{border:none;background:transparent;font-size:11px;color:var(--navy);cursor:pointer;width:100%;text-align:center;padding:2px}
-
-  /* Configurações Modal */
-  .cfg-modal-overlay{position:fixed;inset:0;background:rgba(0,0,0,0.45);z-index:900;display:flex;align-items:center;justify-content:center}
-  .cfg-modal{background:#fff;border-radius:12px;padding:24px;width:520px;max-width:95vw;max-height:90vh;overflow-y:auto;box-shadow:0 8px 32px rgba(0,0,0,0.18)}
-  .cfg-modal-title{font-size:16px;font-weight:700;color:var(--navy);margin-bottom:18px;display:flex;align-items:center;gap:8px}
-  .cfg-section{margin-bottom:20px}
-  .cfg-section-label{font-size:11px;font-weight:700;color:var(--gray);text-transform:uppercase;letter-spacing:0.6px;margin-bottom:10px;padding-bottom:6px;border-bottom:1px solid var(--border)}
-  .cfg-row{display:flex;align-items:center;gap:10px;margin-bottom:10px;flex-wrap:wrap}
-  .cfg-label{font-size:12px;font-weight:600;color:var(--navy);min-width:160px;flex-shrink:0}
-  .cfg-input{border:1px solid var(--border);border-radius:6px;padding:7px 10px;font-size:13px;outline:none;transition:border 0.15s;flex:1;min-width:0}
-  .cfg-input:focus{border-color:var(--blue)}
-  .cfg-toggle{display:flex;gap:0;border:1px solid var(--border);border-radius:7px;overflow:hidden}
-  .cfg-toggle-btn{padding:7px 18px;cursor:pointer;font-size:12px;font-weight:500;background:var(--card);color:var(--gray);border:none;transition:all 0.15s;white-space:nowrap}
-  .cfg-toggle-btn.active{background:var(--navy);color:#fff}
-  .cfg-modal-footer{display:flex;justify-content:flex-end;gap:8px;margin-top:20px;padding-top:16px;border-top:1px solid var(--border)}
 
   /* Planificação */
   .plan-table{width:100%;border-collapse:collapse;font-size:12px}
@@ -532,17 +517,6 @@ async function syncFromDB(){
   if(_saveTimer !== null) return; // save pendente — ignorar
   if(!_lastSavedAt) return; // ainda não guardámos — ignorar
   try{
-    // 1) Verificar primeiro só a data de atualização (alguns bytes, não o JSON todo).
-    //    Isto corre a cada 15s, por isso é essencial não puxar o "dados" completo
-    //    sempre que não há nada de novo (o caso normal, quase sempre).
-    const { data: meta } = await supa.from('dossier_data')
-      .select('updated_at')
-      .eq('user_id', currentUser.id)
-      .eq('ano_letivo', S.anoLetivo)
-      .single();
-    if(!meta || meta.updated_at <= _lastSavedAt) return; // nada de novo — não buscar o resto
-
-    // 2) Só agora, havendo mesmo algo novo, vai buscar o JSON completo
     const row = await loadRowFromDB(S.anoLetivo);
     if(!row) return;
     if(row.updated_at <= _lastSavedAt) return; // nada de novo
@@ -605,10 +579,6 @@ async function initApp(){
   if(!s.reunioes) s.reunioes=[];
   if(!s.avisosLidos) s.avisosLidos={};
   if(!s.avisosEliminados) s.avisosEliminados={};
-  if(!s.config) s.config={modoPeriodos:'semestres',feriadoMunicipalData:'',feriadoMunicipalNome:'',incluirFeriadoMunicipal:false};
-  if(s.config&&!s.config.modoPeriodos) s.config.modoPeriodos='semestres';
-  // Preencher datas de períodos no calendário se não existirem
-  if(s.calendario&&!s.calendario.fim1p){ const [,ano2]=(s.anoLetivo||'2025/2026').split('/').map(Number); s.calendario.fim1p=`${ano2-1}-12-18`; s.calendario.fim2p=`${ano2}-03-28`; }
 
   S = s;
   saveGlobal({ escola:S.escola||'', professor:S.professor||'', logo:S.logo||'', anoLetivo:S.anoLetivo||anoAtivo });
@@ -935,7 +905,6 @@ function calcCurrentWeekOffset(){
 let currentWeekOffset=0; // inicializado após login via initApp()
 let filterSemestre='all';
 let modal=null;
-let cfgModalOpen=false;
 
 function render(){
   if(!S || !currentUser) return; // aguardar login
@@ -954,7 +923,7 @@ function render(){
   document.body.style.overflow='hidden';
   document.body.style.height='100vh';
   app.style.height='100vh';
-  app.innerHTML=`${renderHeader()}<div class="body">${renderSidebar()}<div class="main" id="main-content">${renderTab()}</div></div>${modal?renderModal():''}${cfgModalOpen?renderCfgModal():''}`;  
+  app.innerHTML=`${renderHeader()}<div class="body">${renderSidebar()}<div class="main" id="main-content">${renderTab()}</div></div>${modal?renderModal():''}`;
   attachEvents();
   requestAnimationFrame(()=>{ fixStickyThead(); fixAidStickyMobile(); });
 }
@@ -983,8 +952,8 @@ function renderHome(){
         🔔${_hNAvisos>0?`<span style="background:#fff;color:#dc2626;border-radius:50%;min-width:18px;height:18px;display:inline-flex;align-items:center;justify-content:center;font-size:11px;font-weight:800;padding:0 3px">${_hNAvisos}</span>`:''}
       </button>
       ${S.logo
-        ? `<div style="border-radius:16px;border:1px solid rgba(255,255,255,0.12);background:transparent;display:inline-flex;align-items:center;justify-content:center;margin:0 auto 10px;cursor:pointer;overflow:hidden" onclick="renderSplash()"><img src="${S.logo}" alt="Logotipo" style="max-width:140px;max-height:90px;width:auto;height:auto;object-fit:contain;display:block"></div>`
-        : `<div style="width:82px;height:82px;border-radius:16px;border:1px solid rgba(255,255,255,0.12);background:rgba(255,255,255,0.07);display:flex;align-items:center;justify-content:center;margin:0 auto 10px;cursor:pointer" onclick="renderSplash()"><img src="icons/icon-192x192.png" alt="Ícone" style="width:70%;height:70%;object-fit:contain" onerror="this.style.display='none'"></div>`}
+        ? `<img class="home-icon" src="${S.logo}" alt="Logotipo" onclick="renderSplash()" style="cursor:pointer">`
+        : `<img class="home-icon" src="icons/icon-192x192.png" alt="Ícone" onerror="this.style.display='none'" onclick="renderSplash()" style="cursor:pointer">`}
       <div class="home-title" onclick="renderSplash()" style="cursor:pointer">DOSSIER DE EF</div>
     </div>
     <div class="home-grid">
@@ -1067,16 +1036,16 @@ function renderHeader(){
 
 function renderSidebar(){
   const items=[
-    {id:'painel',icon:`<svg viewBox="0 0 24 24" fill="none" stroke="#60a5fa" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" width="16" height="16"><rect x="3" y="3" width="7" height="7" rx="1.5"/><rect x="14" y="3" width="7" height="7" rx="1.5"/><rect x="3" y="14" width="7" height="7" rx="1.5"/><rect x="14" y="14" width="7" height="7" rx="1.5"/></svg>`,label:'Painel Principal'},
-    {id:'turmas',icon:`<svg viewBox="0 0 24 24" fill="none" stroke="#34d399" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" width="16" height="16"><circle cx="9" cy="7" r="3"/><circle cx="17" cy="9" r="2.5"/><path d="M2 20c0-3.3 3.1-6 7-6s7 2.7 7 6"/><path d="M22 20c0-2.5-2.2-4.5-5-4.5"/></svg>`,label:'Turmas'},
-    {id:'calendario',icon:`<svg viewBox="0 0 24 24" fill="none" stroke="#38bdf8" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" width="16" height="16"><rect x="3" y="4" width="18" height="18" rx="2"/><path d="M16 2v4M8 2v4M3 10h18"/><circle cx="12" cy="16" r="1.5" fill="#38bdf8"/></svg>`,label:'Calendário Letivo'},
-    {id:'planificacao',icon:`<svg viewBox="0 0 24 24" fill="none" stroke="#4ade80" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" width="16" height="16"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></svg>`,label:'Planificação'},
-    {id:'semanal',icon:`<svg viewBox="0 0 24 24" fill="none" stroke="#a78bfa" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" width="16" height="16"><rect x="3" y="4" width="18" height="18" rx="2"/><path d="M16 2v4M8 2v4M3 10h18"/><path d="M8 14h.01M12 14h.01M16 14h.01M8 18h.01M12 18h.01"/></svg>`,label:'Plano Semanal'},
-    {id:'sumarios',icon:`<svg viewBox="0 0 24 24" fill="none" stroke="#fb923c" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" width="16" height="16"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/><line x1="10" y1="9" x2="8" y2="9"/></svg>`,label:'Sumários e Faltas'},
-    {id:'avaliacao',icon:`<svg viewBox="0 0 24 24" fill="none" stroke="#f472b6" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" width="16" height="16"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>`,label:'Avaliação'},
-    {id:'reunioes',icon:`<svg viewBox="0 0 24 24" fill="none" stroke="#fbbf24" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" width="16" height="16"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/><line x1="9" y1="10" x2="15" y2="10"/><line x1="12" y1="7" x2="12" y2="13"/></svg>`,label:'Reuniões e Cenas'},
-    {id:'rotacao', icon:`<svg viewBox="0 0 24 24" fill="none" stroke="#c084fc" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" width="16" height="16"><polyline points="1 4 1 10 7 10"/><path d="M3.51 15a9 9 0 1 0 .49-3.5"/></svg>`,label:'Mapas de Rotação'},
-    {id:'torneios',icon:`<svg viewBox="0 0 24 24" fill="none" stroke="#fcd34d" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" width="16" height="16"><path d="M6 9H4.5a2.5 2.5 0 0 1 0-5H6"/><path d="M18 9h1.5a2.5 2.5 0 0 0 0-5H18"/><path d="M4 22h16"/><path d="M10 14.66V17c0 .55-.47.98-.97 1.21C7.85 18.75 7 20.24 7 22"/><path d="M14 14.66V17c0 .55.47.98.97 1.21C16.15 18.75 17 20.24 17 22"/><path d="M18 2H6v7a6 6 0 0 0 12 0V2z"/></svg>`,label:'Torneios Intraturma'},
+    {id:'painel',icon:'🏠',label:'Painel Principal'},
+    {id:'turmas',icon:'🏫',label:'Turmas'},
+    {id:'calendario',icon:'🗓️',label:'Calendário Letivo'},
+    {id:'planificacao',icon:'📊',label:'Planificação'},
+    {id:'semanal',icon:'📅',label:'Plano Semanal'},
+    {id:'sumarios',icon:'📝',label:'Sumários e Faltas'},
+    {id:'avaliacao',icon:'🎯',label:'Avaliação'},
+    {id:'reunioes',icon:'🗣️',label:'Reuniões e Cenas'},
+    {id:'rotacao', icon:'🔄',label:'Mapas de Rotação'},
+    {id:'torneios',icon:'🏆',label:'Torneios Intraturma'},
   ];
   return `<div class="sidebar">
     <div class="nav-items">${items.map(i=>`<div class="nav-item${currentTab===i.id?' active':''}" data-tab="${i.id}"><span class="nav-icon">${i.icon}</span>${i.label}</div>`).join('')}</div>
@@ -1616,10 +1585,10 @@ function renderFichaAA(turma){
     return `<tr style="border-bottom:1px solid var(--border)">
       <td style="padding:7px 10px;font-size:13px;font-weight:600;color:var(--navy);border:1px solid var(--border)">${esc(nome)}</td>
       <td style="padding:5px 8px;text-align:center;border:1px solid var(--border);background:#f8faff">
-        ${(()=>{ if(!f1) return '<span style="color:#ccc;font-size:11px">Pendente</span>'; return `<div style="display:flex;align-items:center;justify-content:center;gap:6px"><span style="font-size:12px;cursor:pointer;color:#2563eb;text-decoration:underline" onclick=\"verFichaAluno(null,'${escJ(nome)}',1)\">${esc(nome)}</span><button onclick="eliminarFichaAluno('${escJ(nome)}',1,${turma.id})" title="Eliminar submissão" style="background:#fee2e2;border:1px solid #fca5a5;color:#dc2626;border-radius:5px;padding:2px 6px;font-size:11px;cursor:pointer;line-height:1;flex-shrink:0" onmouseover="this.style.background='#fecaca'" onmouseout="this.style.background='#fee2e2'">🗑️</button></div><small style="color:#888;font-size:10px">${nota1}</small>`; })()}
+        ${(()=>{ if(!f1) return '<span style="color:#ccc;font-size:11px">Pendente</span>'; return `<div style="display:flex;align-items:center;justify-content:center;gap:6px"><span style="font-size:12px;cursor:pointer;color:#2563eb;text-decoration:underline" onclick=\"verFichaAluno(null,'\${escJ(nome)}',1)\">${esc(nome)}</span><button onclick="eliminarFichaAluno('${escJ(nome)}',1,${turma.id})" title="Eliminar submissão" style="background:#fee2e2;border:1px solid #fca5a5;color:#dc2626;border-radius:5px;padding:2px 6px;font-size:11px;cursor:pointer;line-height:1;flex-shrink:0" onmouseover="this.style.background='#fecaca'" onmouseout="this.style.background='#fee2e2'">🗑️</button></div><small style="color:#888;font-size:10px">${nota1}</small>`; })()}
       </td>
       <td style="padding:5px 8px;text-align:center;border:1px solid var(--border);background:#f0fdf8">
-        ${(()=>{ if(!f2) return '<span style="color:#ccc;font-size:11px">Pendente</span>'; return `<div style="display:flex;align-items:center;justify-content:center;gap:6px"><span style="font-size:12px;cursor:pointer;color:#2563eb;text-decoration:underline" onclick=\"verFichaAluno(null,'${escJ(nome)}',2)\">${esc(nome)}</span><button onclick="eliminarFichaAluno('${escJ(nome)}',2,${turma.id})" title="Eliminar submissão" style="background:#fee2e2;border:1px solid #fca5a5;color:#dc2626;border-radius:5px;padding:2px 6px;font-size:11px;cursor:pointer;line-height:1;flex-shrink:0" onmouseover="this.style.background='#fecaca'" onmouseout="this.style.background='#fee2e2'">🗑️</button></div><small style="color:#888;font-size:10px">${nota2}</small>`; })()}
+        ${(()=>{ if(!f2) return '<span style="color:#ccc;font-size:11px">Pendente</span>'; return `<div style="display:flex;align-items:center;justify-content:center;gap:6px"><span style="font-size:12px;cursor:pointer;color:#2563eb;text-decoration:underline" onclick=\"verFichaAluno(null,'\${escJ(nome)}',2)\">${esc(nome)}</span><button onclick="eliminarFichaAluno('${escJ(nome)}',2,${turma.id})" title="Eliminar submissão" style="background:#fee2e2;border:1px solid #fca5a5;color:#dc2626;border-radius:5px;padding:2px 6px;font-size:11px;cursor:pointer;line-height:1;flex-shrink:0" onmouseover="this.style.background='#fecaca'" onmouseout="this.style.background='#fee2e2'">🗑️</button></div><small style="color:#888;font-size:10px">${nota2}</small>`; })()}
       </td>
     </tr>`;
   }).join('');
@@ -1723,10 +1692,10 @@ async function carregarLinksCurtos(turmaId, userId, anoLetivo){
           return `<tr style="border-bottom:1px solid var(--border)">
             <td style="padding:7px 10px;font-size:13px;font-weight:600;color:var(--navy);border:1px solid var(--border)">${esc(nome)}</td>
             <td style="padding:5px 8px;text-align:center;border:1px solid var(--border);background:#f8faff">
-              ${(()=>{ if(!f1) return '<span style="color:#ccc;font-size:11px">Pendente</span>'; return `<div style="display:flex;align-items:center;justify-content:center;gap:6px"><span style="font-size:12px;cursor:pointer;color:#2563eb;text-decoration:underline" onclick=\"verFichaAluno(null,'${escJ(nome)}',1)\">${esc(nome)}</span><button onclick="eliminarFichaAluno('${escJ(nome)}',1,${turmaId})" title="Eliminar submissão" style="background:#fee2e2;border:1px solid #fca5a5;color:#dc2626;border-radius:5px;padding:2px 6px;font-size:11px;cursor:pointer;line-height:1;flex-shrink:0" onmouseover="this.style.background='#fecaca'" onmouseout="this.style.background='#fee2e2'">🗑️</button></div><small style="color:#888;font-size:10px">${nota1}</small>`; })()}
+              ${(()=>{ if(!f1) return '<span style="color:#ccc;font-size:11px">Pendente</span>'; return `<div style="display:flex;align-items:center;justify-content:center;gap:6px"><span style="font-size:12px;cursor:pointer;color:#2563eb;text-decoration:underline" onclick=\"verFichaAluno(null,'\${escJ(nome)}',1)\">${esc(nome)}</span><button onclick="eliminarFichaAluno('${escJ(nome)}',1,${turmaId})" title="Eliminar submissão" style="background:#fee2e2;border:1px solid #fca5a5;color:#dc2626;border-radius:5px;padding:2px 6px;font-size:11px;cursor:pointer;line-height:1;flex-shrink:0" onmouseover="this.style.background='#fecaca'" onmouseout="this.style.background='#fee2e2'">🗑️</button></div><small style="color:#888;font-size:10px">${nota1}</small>`; })()}
             </td>
             <td style="padding:5px 8px;text-align:center;border:1px solid var(--border);background:#f0fdf8">
-              ${(()=>{ if(!f2) return '<span style="color:#ccc;font-size:11px">Pendente</span>'; return `<div style="display:flex;align-items:center;justify-content:center;gap:6px"><span style="font-size:12px;cursor:pointer;color:#2563eb;text-decoration:underline" onclick=\"verFichaAluno(null,'${escJ(nome)}',2)\">${esc(nome)}</span><button onclick="eliminarFichaAluno('${escJ(nome)}',2,${turmaId})" title="Eliminar submissão" style="background:#fee2e2;border:1px solid #fca5a5;color:#dc2626;border-radius:5px;padding:2px 6px;font-size:11px;cursor:pointer;line-height:1;flex-shrink:0" onmouseover="this.style.background='#fecaca'" onmouseout="this.style.background='#fee2e2'">🗑️</button></div><small style="color:#888;font-size:10px">${nota2}</small>`; })()}
+              ${(()=>{ if(!f2) return '<span style="color:#ccc;font-size:11px">Pendente</span>'; return `<div style="display:flex;align-items:center;justify-content:center;gap:6px"><span style="font-size:12px;cursor:pointer;color:#2563eb;text-decoration:underline" onclick=\"verFichaAluno(null,'\${escJ(nome)}',2)\">${esc(nome)}</span><button onclick="eliminarFichaAluno('${escJ(nome)}',2,${turmaId})" title="Eliminar submissão" style="background:#fee2e2;border:1px solid #fca5a5;color:#dc2626;border-radius:5px;padding:2px 6px;font-size:11px;cursor:pointer;line-height:1;flex-shrink:0" onmouseover="this.style.background='#fecaca'" onmouseout="this.style.background='#fee2e2'">🗑️</button></div><small style="color:#888;font-size:10px">${nota2}</small>`; })()}
             </td>
           </tr>`;
         }).join('');
@@ -1837,10 +1806,10 @@ async function eliminarFichaAluno(nomeAluno, sem, turmaId){
         return `<tr style="border-bottom:1px solid var(--border)">
           <td style="padding:7px 10px;font-size:13px;font-weight:600;color:var(--navy);border:1px solid var(--border)">${esc(nome)}</td>
           <td style="padding:5px 8px;text-align:center;border:1px solid var(--border);background:#f8faff">
-            ${(()=>{ if(!f1) return '<span style="color:#ccc;font-size:11px">Pendente</span>'; return `<div style="display:flex;align-items:center;justify-content:center;gap:6px"><span style="font-size:12px;cursor:pointer;color:#2563eb;text-decoration:underline" onclick=\"verFichaAluno(null,'${escJ(nome)}',1)\">${esc(nome)}</span><button onclick="eliminarFichaAluno('${escJ(nome)}',1,${turmaId})" title="Eliminar submissão" style="background:#fee2e2;border:1px solid #fca5a5;color:#dc2626;border-radius:5px;padding:2px 6px;font-size:11px;cursor:pointer;line-height:1;flex-shrink:0" onmouseover="this.style.background='#fecaca'" onmouseout="this.style.background='#fee2e2'">🗑️</button></div><small style="color:#888;font-size:10px">${nota1}</small>`; })()}
+            ${(()=>{ if(!f1) return '<span style="color:#ccc;font-size:11px">Pendente</span>'; return `<div style="display:flex;align-items:center;justify-content:center;gap:6px"><span style="font-size:12px;cursor:pointer;color:#2563eb;text-decoration:underline" onclick=\"verFichaAluno(null,'\${escJ(nome)}',1)\">${esc(nome)}</span><button onclick="eliminarFichaAluno('${escJ(nome)}',1,${turmaId})" title="Eliminar submissão" style="background:#fee2e2;border:1px solid #fca5a5;color:#dc2626;border-radius:5px;padding:2px 6px;font-size:11px;cursor:pointer;line-height:1;flex-shrink:0" onmouseover="this.style.background='#fecaca'" onmouseout="this.style.background='#fee2e2'">🗑️</button></div><small style="color:#888;font-size:10px">${nota1}</small>`; })()}
           </td>
           <td style="padding:5px 8px;text-align:center;border:1px solid var(--border);background:#f0fdf8">
-            ${(()=>{ if(!f2) return '<span style="color:#ccc;font-size:11px">Pendente</span>'; return `<div style="display:flex;align-items:center;justify-content:center;gap:6px"><span style="font-size:12px;cursor:pointer;color:#2563eb;text-decoration:underline" onclick=\"verFichaAluno(null,'${escJ(nome)}',2)\">${esc(nome)}</span><button onclick="eliminarFichaAluno('${escJ(nome)}',2,${turmaId})" title="Eliminar submissão" style="background:#fee2e2;border:1px solid #fca5a5;color:#dc2626;border-radius:5px;padding:2px 6px;font-size:11px;cursor:pointer;line-height:1;flex-shrink:0" onmouseover="this.style.background='#fecaca'" onmouseout="this.style.background='#fee2e2'">🗑️</button></div><small style="color:#888;font-size:10px">${nota2}</small>`; })()}
+            ${(()=>{ if(!f2) return '<span style="color:#ccc;font-size:11px">Pendente</span>'; return `<div style="display:flex;align-items:center;justify-content:center;gap:6px"><span style="font-size:12px;cursor:pointer;color:#2563eb;text-decoration:underline" onclick=\"verFichaAluno(null,'\${escJ(nome)}',2)\">${esc(nome)}</span><button onclick="eliminarFichaAluno('${escJ(nome)}',2,${turmaId})" title="Eliminar submissão" style="background:#fee2e2;border:1px solid #fca5a5;color:#dc2626;border-radius:5px;padding:2px 6px;font-size:11px;cursor:pointer;line-height:1;flex-shrink:0" onmouseover="this.style.background='#fecaca'" onmouseout="this.style.background='#fee2e2'">🗑️</button></div><small style="color:#888;font-size:10px">${nota2}</small>`; })()}
           </td>
         </tr>`;
       }).join('');
@@ -3234,12 +3203,9 @@ function renderPainel(){
   return `<div>
     <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px">
       <div class="section-title" style="margin:0">Painel Principal — ${esc(S.anoLetivo)}</div>
-      <div style="display:flex;align-items:center;gap:10px">
-      <button class="btn btn-primary" id="openCfgBtn" style="display:inline-flex;align-items:center">⚙️ Configurações da Escola</button>
       <button class="btn" id="avisosBtn" style="${_btnStyle};position:relative;font-weight:700;font-size:15px;padding:10px 20px;border-radius:10px;letter-spacing:0.2px;display:${isMobile()?'none':'inline-flex'};align-items:center">
         🔔 Avisos${_nAvisos>0?` <span style="background:#fff;color:#dc2626;border-radius:50%;min-width:22px;height:22px;display:inline-flex;align-items:center;justify-content:center;font-size:12px;font-weight:800;margin-left:6px;padding:0 4px">${_nAvisos}</span>`:''}
       </button>
-      </div>
     </div>
     <div class="grid-4" style="margin-bottom:20px">
       ${[
@@ -4383,30 +4349,17 @@ function renderSumarioRow(a,turma){
 // === CALENDÁRIO ===
 function renderCalendario(){
   const cal=S.calendario;
-  const cfg=S.config||{};
-  const modo=cfg.modoPeriodos||'semestres';
-  const is3p=(modo==='periodos');
-
   return `<div>
-    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px;flex-wrap:wrap;gap:10px">
-      <div class="section-title" style="margin-bottom:0">Calendário Letivo</div>
-    </div>
+    <div class="section-title">Calendário Letivo</div>
     <div class="grid-2 cal-layout" style="gap:20px;align-items:start">
       <div>
         <div class="card">
           <div style="font-size:14px;font-weight:700;color:var(--navy);margin-bottom:14px">📅 Datas Principais</div>
           <div class="cal-section"><div class="cal-label">Início do Ano Letivo</div>
             <input type="date" class="cal-input" id="calInicio" value="${cal.inicio||''}"></div>
-          ${is3p ? `
-          <div class="cal-section"><div class="cal-label">Final do 1º Período</div>
-            <input type="date" class="cal-input" id="calFim1p" value="${cal.fim1p||''}"></div>
-          <div class="cal-section"><div class="cal-label">Final do 2º Período</div>
-            <input type="date" class="cal-input" id="calFim2p" value="${cal.fim2p||''}"></div>
-          ` : `
           <div class="cal-section"><div class="cal-label">Final do 1º Semestre</div>
             <input type="date" class="cal-input" id="calFim1s" value="${cal.fim1s||''}"></div>
-          `}
-          <div style="font-size:12px;font-weight:700;color:var(--navy);margin:14px 0 8px">Final do ${is3p?'3º Período':'2º Semestre'} por Ano</div>
+          <div style="font-size:12px;font-weight:700;color:var(--navy);margin:14px 0 8px">Final do 2º Semestre por Ano</div>
           ${ANOS_ESC.map(a=>`<div style="display:flex;align-items:center;gap:10px;margin-bottom:8px">
             <div style="font-size:12px;font-weight:600;color:var(--gray);min-width:32px">${a}</div>
             <input type="date" class="cal-input" data-ano="${a}" value="${(cal.fimAnos&&cal.fimAnos[a])||''}" style="flex:1">
@@ -4416,7 +4369,7 @@ function renderCalendario(){
         <div class="card" style="margin-top:16px">
           <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px">
             <div style="font-size:14px;font-weight:700;color:var(--navy)">🚫 Feriados</div>
-            <button class="btn btn-sm" id="reporFeriadosBtn" title="Repõe os feriados nacionais de Portugal">↺ Repor feriados oficiais</button>
+            <button class="btn btn-sm" id="reporFeriadosBtn" title="Repõe os feriados nacionais de Portugal 2025-2026 + feriado municipal de Setúbal">↺ Repor feriados oficiais</button>
           </div>
           <div style="display:flex;gap:8px;margin-bottom:12px">
             <input type="date" class="cal-input" id="novoFeriado" style="flex:1">
@@ -4426,29 +4379,6 @@ function renderCalendario(){
           ${S.feriados.length===0?'<div style="color:var(--gray);font-size:12px">Nenhum feriado adicionado.</div>':''}
         </div>
         <div class="card" style="margin-top:16px">
-          <div style="font-size:14px;font-weight:700;color:var(--navy);margin-bottom:12px">⏸️ Pausas Letivas</div>
-          <p style="font-size:11px;color:var(--gray);margin-bottom:10px">Defina um intervalo de datas (início e fim inclusive). Todos os dias desse intervalo serão tratados como não letivos.</p>
-          <div style="display:flex;gap:8px;align-items:center;margin-bottom:12px;flex-wrap:wrap">
-            <div style="display:flex;align-items:center;gap:6px;flex:1;min-width:160px">
-              <span style="font-size:11px;font-weight:600;color:var(--gray);white-space:nowrap">De</span>
-              <input type="date" class="cal-input" id="pausaInicio" style="flex:1">
-            </div>
-            <div style="display:flex;align-items:center;gap:6px;flex:1;min-width:160px">
-              <span style="font-size:11px;font-weight:600;color:var(--gray);white-space:nowrap">Até</span>
-              <input type="date" class="cal-input" id="pausaFim" style="flex:1">
-            </div>
-            <button class="btn btn-primary" id="addPausaBtn">+ Adicionar</button>
-          </div>
-          <div class="feriados-list">
-            ${(S.pausasIntervalos||[]).map((p,i)=>`
-              <span class="feriado-tag" style="background:var(--amber2);color:var(--amber)">
-                ${fmtDate(p.inicio)} → ${fmtDate(p.fim)}
-                <button data-pausa="${i}" title="Remover" style="color:var(--amber)">×</button>
-              </span>`).join('')}
-          </div>
-          ${!(S.pausasIntervalos&&S.pausasIntervalos.length)?'<div style="color:var(--gray);font-size:12px">Nenhuma pausa adicionada.</div>':''}
-        </div>
-      </div>
           <div style="font-size:14px;font-weight:700;color:var(--navy);margin-bottom:12px">⏸️ Pausas Letivas</div>
           <p style="font-size:11px;color:var(--gray);margin-bottom:10px">Defina um intervalo de datas (início e fim inclusive). Todos os dias desse intervalo serão tratados como não letivos.</p>
           <div style="display:flex;gap:8px;align-items:center;margin-bottom:12px;flex-wrap:wrap">
@@ -4497,72 +4427,6 @@ function renderCalendario(){
           </tr>`).join('')}</tbody>
         </table>
         </div>
-      </div>
-    </div>
-  </div>`;
-}
-
-// === CONFIGURAÇÕES MODAL ===
-function renderCfgModal(){
-  const cfg=S.config||{};
-  const modo=cfg.modoPeriodos||'semestres';
-  return `<div class="cfg-modal-overlay" id="cfgModalOverlay">
-    <div class="cfg-modal">
-      <div class="cfg-modal-title">⚙️ Configurações da Escola</div>
-
-      <div class="cfg-section">
-        <div class="cfg-section-label">Identificação</div>
-        <div class="cfg-row">
-          <div class="cfg-label">Nome da escola</div>
-          <input class="cfg-input" id="cfgEscola" value="${esc(S.escola||'')}" placeholder="Ex: Escola Secundária do Bocage">
-        </div>
-        <div class="cfg-row">
-          <div class="cfg-label">Nome do professor</div>
-          <input class="cfg-input" id="cfgProfessor" value="${esc(S.professor||'')}" placeholder="Nome do Professor">
-        </div>
-      </div>
-
-      <div class="cfg-section">
-        <div class="cfg-section-label">Estrutura do Ano Letivo</div>
-        <div class="cfg-row">
-          <div class="cfg-label">Regime de avaliação</div>
-          <div class="cfg-toggle">
-            <button class="cfg-toggle-btn${modo==='semestres'?' active':''}" data-modo="semestres">2 Semestres</button>
-            <button class="cfg-toggle-btn${modo==='periodos'?' active':''}" data-modo="periodos">3 Períodos</button>
-          </div>
-        </div>
-        <div style="font-size:11px;color:var(--gray);margin-top:-4px;margin-bottom:2px;padding-left:170px">
-          ${modo==='periodos'
-            ? 'Três períodos. Configure o fim de cada período no calendário.'
-            : 'Dois semestres. Configure o fim do 1º semestre no calendário.'}
-        </div>
-      </div>
-
-      <div class="cfg-section">
-        <div class="cfg-section-label">Feriado Municipal</div>
-        <div class="cfg-row">
-          <div class="cfg-label">Incluir feriado municipal</div>
-          <label style="display:flex;align-items:center;gap:8px;cursor:pointer;font-size:13px">
-            <input type="checkbox" id="cfgIncluirFerMun" ${cfg.incluirFeriadoMunicipal?'checked':''} style="width:16px;height:16px;cursor:pointer">
-            Sim
-          </label>
-        </div>
-        <div id="ferMunFields" style="display:${cfg.incluirFeriadoMunicipal?'block':'none'}">
-          <div class="cfg-row">
-            <div class="cfg-label">Data (MM-DD)</div>
-            <input class="cfg-input" id="cfgFerMunData" value="${esc(cfg.feriadoMunicipalData||'')}" placeholder="Ex: 09-15" style="max-width:120px">
-            <span style="font-size:11px;color:var(--gray)">formato MM-DD, aplicado ao ano letivo</span>
-          </div>
-          <div class="cfg-row">
-            <div class="cfg-label">Designação</div>
-            <input class="cfg-input" id="cfgFerMunNome" value="${esc(cfg.feriadoMunicipalNome||'')}" placeholder="Ex: Feriado Municipal de Setúbal">
-          </div>
-        </div>
-      </div>
-
-      <div class="cfg-modal-footer">
-        <button class="btn" id="closeCfgBtn">Cancelar</button>
-        <button class="btn btn-primary" id="saveCfgBtn">💾 Guardar Configurações</button>
       </div>
     </div>
   </div>`;
@@ -5303,23 +5167,7 @@ function isFeriadoOrPausa(dt){
   if(S.pausasIntervalos&&S.pausasIntervalos.some(p=>dt>=p.inicio&&dt<=p.fim)) return true;
   return false;
 }
-function getNumPeriodos(){ return (S && S.config && S.config.modoPeriodos === 'periodos') ? 3 : 2; }
-function getLabelPeriodo(n){ return getNumPeriodos()===3 ? n+'º Período' : n+'º Semestre'; }
-
-function getSemestre(dt){
-  const cal=S.calendario;
-  if(!cal||!cal.inicio) return 1;
-  if(getNumPeriodos()===3){
-    const f1=cal.fim1p||cal.fim1s||'';
-    const f2=cal.fim2p||'';
-    if(!f1) return 1;
-    if(dt<=f1) return 1;
-    if(!f2||dt<=f2) return 2;
-    return 3;
-  }
-  if(!cal.fim1s) return 1;
-  return dt<=cal.fim1s?1:2;
-}
+function getSemestre(dt){const cal=S.calendario;if(!cal||!cal.fim1s)return 1;return dt<=cal.fim1s?1:2;}
 
 // === EVENTS ===
 function attachEvents(){
@@ -5416,62 +5264,6 @@ function attachEvents(){
   });
 
   // Painel
-  // Configurações Modal
-  const openCfgBtn=document.getElementById('openCfgBtn');
-  if(openCfgBtn) openCfgBtn.addEventListener('click',()=>{ cfgModalOpen=true; render(); });
-
-  const cfgModalOverlay=document.getElementById('cfgModalOverlay');
-  if(cfgModalOverlay){
-    cfgModalOverlay.addEventListener('click',e=>{ if(e.target===cfgModalOverlay){cfgModalOpen=false;render();} });
-  }
-  const closeCfgBtn=document.getElementById('closeCfgBtn');
-  if(closeCfgBtn) closeCfgBtn.addEventListener('click',()=>{ cfgModalOpen=false; render(); });
-
-  document.querySelectorAll('.cfg-toggle-btn[data-modo]').forEach(btn=>{
-    btn.addEventListener('click',()=>{
-      if(!S.config) S.config={};
-      S.config.modoPeriodos=btn.dataset.modo;
-      document.querySelectorAll('.cfg-toggle-btn[data-modo]').forEach(b=>b.classList.toggle('active',b.dataset.modo===btn.dataset.modo));
-      const infoEl=btn.closest('.cfg-section')?.querySelector('div[style*="padding-left"]');
-      if(infoEl) infoEl.textContent=btn.dataset.modo==='periodos'
-        ?'Três períodos. Configure o fim de cada período no calendário.'
-        :'Dois semestres. Configure o fim do 1º semestre no calendário.';
-    });
-  });
-
-  const cfgIncluirFerMun=document.getElementById('cfgIncluirFerMun');
-  if(cfgIncluirFerMun){
-    cfgIncluirFerMun.addEventListener('change',()=>{
-      const fields=document.getElementById('ferMunFields');
-      if(fields) fields.style.display=cfgIncluirFerMun.checked?'block':'none';
-    });
-  }
-
-  const saveCfgBtn=document.getElementById('saveCfgBtn');
-  if(saveCfgBtn) saveCfgBtn.addEventListener('click',()=>{
-    if(!S.config) S.config={};
-    const escola=document.getElementById('cfgEscola')?.value||'';
-    const professor=document.getElementById('cfgProfessor')?.value||'';
-    const incluirFerMun=document.getElementById('cfgIncluirFerMun')?.checked||false;
-    const ferMunData=document.getElementById('cfgFerMunData')?.value||'';
-    const ferMunNome=document.getElementById('cfgFerMunNome')?.value||'';
-    S.escola=escola;
-    S.professor=professor;
-    S.config.incluirFeriadoMunicipal=incluirFerMun;
-    S.config.feriadoMunicipalData=ferMunData;
-    S.config.feriadoMunicipalNome=ferMunNome;
-    const sn=document.getElementById('schoolName'); if(sn) sn.value=escola;
-    const pn=document.getElementById('profName'); if(pn) pn.value=professor;
-    cfgModalOpen=false;
-    save();
-    render();
-    const toast=document.createElement('div');
-    toast.textContent='✅ Configurações guardadas';
-    toast.style.cssText='position:fixed;bottom:24px;left:50%;transform:translateX(-50%);background:#1a2d4a;color:#fff;padding:10px 20px;border-radius:8px;font-size:13px;font-weight:600;z-index:9999;box-shadow:0 4px 12px rgba(0,0,0,0.2)';
-    document.body.appendChild(toast);
-    setTimeout(()=>toast.remove(),2200);
-  });
-
   const avisosBtn=document.getElementById('avisosBtn');
   if(avisosBtn) avisosBtn.addEventListener('click',()=>{currentTab='avisos';render();});
   const avisosVoltarBtn=document.getElementById('avisosVoltarBtn');
@@ -6769,24 +6561,13 @@ function attachEvents(){
   // Calendário
   const saveCalBtn=document.getElementById('saveCalBtn');
   if(saveCalBtn) saveCalBtn.addEventListener('click',()=>{
-    const i=document.getElementById('calInicio');
-    const f1s=document.getElementById('calFim1s');
-    const f1p=document.getElementById('calFim1p');
-    const f2p=document.getElementById('calFim2p');
-    if(i) S.calendario.inicio=i.value;
-    if(f1s) S.calendario.fim1s=f1s.value;
-    if(f1p) S.calendario.fim1p=f1p.value;
-    if(f2p) S.calendario.fim2p=f2p.value;
+    const i=document.getElementById('calInicio');const f=document.getElementById('calFim1s');
+    if(i) S.calendario.inicio=i.value;if(f) S.calendario.fim1s=f.value;
     document.querySelectorAll('[data-ano]').forEach(el=>{
       if(!S.calendario.fimAnos) S.calendario.fimAnos={};
       S.calendario.fimAnos[el.dataset.ano]=el.value;
     });
-    save();render();
-    const toast=document.createElement('div');
-    toast.textContent='✅ Calendário guardado';
-    toast.style.cssText='position:fixed;bottom:24px;left:50%;transform:translateX(-50%);background:#1a2d4a;color:#fff;padding:10px 20px;border-radius:8px;font-size:13px;font-weight:600;z-index:9999;box-shadow:0 4px 12px rgba(0,0,0,0.2)';
-    document.body.appendChild(toast);
-    setTimeout(()=>toast.remove(),2000);
+    save();render();alert('Calendário guardado com sucesso!');
   });
   const addFeriadoBtn=document.getElementById('addFeriadoBtn');
   if(addFeriadoBtn) addFeriadoBtn.addEventListener('click',()=>{
