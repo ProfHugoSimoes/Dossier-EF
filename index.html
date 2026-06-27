@@ -1123,13 +1123,17 @@ let filterAvaliacaoSub='aid';
 function renderAvaliacao(){
   if(!filterAvaliacaoTurma&&S.turmas.length) filterAvaliacaoTurma=S.turmas[0].id;
   if(!S.avaliacao) S.avaliacao={};
+  const is3p=getNumPeriodos()===3;
+  const lbl1=is3p?'1ºP':'1ºS'; const lbl2=is3p?'2ºP':'2ºS';
   const subPastas=[
     {id:'fitescola',icon:'🏃',label:'FITESCOLA - AID'},
-    {id:'fitescola1s',icon:'🏃',label:'FITESCOLA 1ºS'},
-    {id:'fitescola2s',icon:'🏃',label:'FITESCOLA 2ºS'},
+    {id:'fitescola1s',icon:'🏃',label:`FITESCOLA ${lbl1}`},
+    {id:'fitescola2s',icon:'🏃',label:`FITESCOLA ${lbl2}`},
+    ...(is3p?[{id:'fitescola3s',icon:'🏃',label:'FITESCOLA 3ºP'}]:[]),
     {id:'aid',icon:'📋',label:'AID'},
-    {id:'sem1',icon:'📘',label:'1º SEMESTRE'},
-    {id:'sem2',icon:'📗',label:'2º SEMESTRE'},
+    {id:'sem1',icon:'📘',label:is3p?'1º PERÍODO':'1º SEMESTRE'},
+    {id:'sem2',icon:'📗',label:is3p?'2º PERÍODO':'2º SEMESTRE'},
+    ...(is3p?[{id:'sem3',icon:'📕',label:'3º PERÍODO'}]:[]),
     {id:'sem1am',icon:'📙',label:'ALUNOS A.M.'},
     {id:'fichaaa',icon:'📝',label:'FICHA AA'},
   ];
@@ -1343,8 +1347,10 @@ function renderFitescola(turma){
   if(!S.avaliacao) S.avaliacao={};
   const subId=filterAvaliacaoSub; // fitescola | fitescola1s | fitescola2s
   const key=`${turma.id}__${subId}`;
-  const subTitles={fitescola:'FITESCOLA - AID',fitescola1s:'FITESCOLA 1º Semestre',fitescola2s:'FITESCOLA 2º Semestre'};
-  const subTitlesMob={fitescola:'Fitescola - AID',fitescola1s:'FITESCOLA - 1ºS',fitescola2s:'FITESCOLA - 2ºS'};
+  const is3pFit=getNumPeriodos()===3;
+  const lbl1fit=is3pFit?'1º Período':'1º Semestre'; const lbl2fit=is3pFit?'2º Período':'2º Semestre';
+  const subTitles={fitescola:'FITESCOLA - AID',fitescola1s:`FITESCOLA ${lbl1fit}`,fitescola2s:`FITESCOLA ${lbl2fit}`,fitescola3s:'FITESCOLA 3º Período'};
+  const subTitlesMob={fitescola:'Fitescola - AID',fitescola1s:`FITESCOLA - ${is3pFit?'1ºP':'1ºS'}`,fitescola2s:`FITESCOLA - ${is3pFit?'2ºP':'2ºS'}`,fitescola3s:'FITESCOLA - 3ºP'};
   const subTitle=subTitles[subId]||'FITESCOLA';
   const subTitleMob=subTitlesMob[subId]||'FITESCOLA';
   if(!S.avaliacao[key]) S.avaliacao[key]={resultados:{},obs:''};
@@ -2382,14 +2388,15 @@ function renderAvaliacaoSub(turma){
   if(filterAvaliacaoSub==='fitescola') return renderFitescola(turma);
   if(filterAvaliacaoSub==='fitescola1s') return renderFitescola(turma);
   if(filterAvaliacaoSub==='fitescola2s') return renderFitescola(turma);
+  if(filterAvaliacaoSub==='fitescola3s') return renderFitescola(turma);
   // sem1am é tratado directamente em renderAvaliacao() — não passa por aqui
   if(!S.avaliacao[key]) S.avaliacao[key]={notas:{},obsAlunos:{},pontos:{},obs:''};
   const dados=S.avaliacao[key];
   const subLabels={aid:'AID — Avaliação Inicial / Diagnóstica',sem1:'1º SEMESTRE',sem2:'2º SEMESTRE'};
   const subLabelsMob={aid:'AID',sem1:'1ºS',sem2:'2ºS',sem1am:'Alunos A.M.'};
   const showExtra=filterAvaliacaoSub==='aid';
-  const isSem1=filterAvaliacaoSub==='sem1'||filterAvaliacaoSub==='sem2';
-  const isSem2=filterAvaliacaoSub==='sem2';
+  const isSem1=filterAvaliacaoSub==='sem1'||filterAvaliacaoSub==='sem2'||filterAvaliacaoSub==='sem3';
+  const isSem2=filterAvaliacaoSub==='sem2'||filterAvaliacaoSub==='sem3';
   const anoLetivo=parseInt((S.anoLetivo||'2025/26').split('/')[0]);
 
   // Aptidão física da AID lê sempre do FITESCOLA - AID
@@ -3085,59 +3092,65 @@ function notaBg(n){
 
 function renderResumoAnual(){
   if(!S.turmas||!S.turmas.length) return '';
+  const is3p=getNumPeriodos()===3;
+  const lbl1=is3p?'1P':'1S'; const lbl2=is3p?'2P':'2S'; const lbl3='3P';
+  const ncols=is3p?4:3; // nome + período(s)
 
   const cols = S.turmas.map(t=>{
-    const k1=`${t.id}__sem1`, k2=`${t.id}__sem2`;
+    const k1=`${t.id}__sem1`, k2=`${t.id}__sem2`, k3=`${t.id}__sem3`;
     const notas1=S.avaliacao?.[k1]?.classifFinalSem||{};
     const notas2=S.avaliacao?.[k2]?.classifFinalSem||{};
+    const notas3=is3p?(S.avaliacao?.[k3]?.classifFinalSem||{}):null;
     const alunos=(t.alunos||[]).map(a=>typeof a==='string'?a:(a.nome||'')).filter(Boolean);
 
-    // Médias da turma
     const vals1=alunos.map(n=>parseFloat(notas1[n])).filter(v=>!isNaN(v)&&v>0);
     const vals2=alunos.map(n=>parseFloat(notas2[n])).filter(v=>!isNaN(v)&&v>0);
+    const vals3=is3p?alunos.map(n=>parseFloat(notas3[n])).filter(v=>!isNaN(v)&&v>0):[];
     const med1=vals1.length?Math.round(vals1.reduce((a,b)=>a+b,0)/vals1.length*10)/10:null;
     const med2=vals2.length?Math.round(vals2.reduce((a,b)=>a+b,0)/vals2.length*10)/10:null;
+    const med3=vals3.length?Math.round(vals3.reduce((a,b)=>a+b,0)/vals3.length*10)/10:null;
 
-    return {t, alunos, notas1, notas2, med1, med2};
+    return {t, alunos, notas1, notas2, notas3, med1, med2, med3};
   });
 
   const nTurmas = cols.length;
   const maxAlunos = cols.reduce((m,c)=>Math.max(m,c.alunos.length),0);
 
-  // Cabeçalho — uma célula por turma (colspan 3: nome | 1S | 2S), mais espaçador entre turmas
-  const theadCols = cols.map(({t,alunos})=>`
-    <th colspan="2" style="padding:3px 2px;text-align:center;font-size:10px;color:#cbd5e1;font-weight:600;background:#1e3a5f;border-left:3px solid #0f172a">1S</th>
-    <th style="padding:3px 2px;text-align:center;font-size:10px;color:#cbd5e1;font-weight:600;background:#1e3a5f">2S</th>
+  const theadCols = cols.map(()=>`
+    <th colspan="2" style="padding:3px 2px;text-align:center;font-size:10px;color:#cbd5e1;font-weight:600;background:#1e3a5f;border-left:3px solid #0f172a">${lbl1}</th>
+    <th style="padding:3px 2px;text-align:center;font-size:10px;color:#cbd5e1;font-weight:600;background:#1e3a5f">${lbl2}</th>
+    ${is3p?`<th style="padding:3px 2px;text-align:center;font-size:10px;color:#fcd34d;font-weight:600;background:#1e3a5f">${lbl3}</th>`:''}
   `).join('');
 
   const theadNames = cols.map(({t,alunos})=>`
-    <th colspan="3" style="padding:5px 6px;text-align:center;background:var(--blue);color:#fff;font-size:11px;font-weight:800;border-left:3px solid #0f172a;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:0">
+    <th colspan="${ncols}" style="padding:5px 6px;text-align:center;background:var(--blue);color:#fff;font-size:11px;font-weight:800;border-left:3px solid #0f172a;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:0">
       ${esc(t.nome)} <span style="font-weight:400;opacity:0.75;font-size:10px">(${alunos.length} al.)</span>
     </th>
   `).join('');
 
-  // Linhas de dados — para cada linha i até maxAlunos
   const tbodyRows = Array.from({length: maxAlunos}, (_,i)=>{
     const bg = i%2===0?'var(--gray2)':'#fff';
-    const cells = cols.map(({alunos,notas1,notas2})=>{
+    const cells = cols.map(({alunos,notas1,notas2,notas3})=>{
       const nome = alunos[i];
-      if(!nome) return `<td colspan="3" style="padding:3px 5px;background:${bg};border-bottom:1px solid var(--border);border-left:3px solid #e2e8f0"></td>`;
-      const n1=notas1[nome]; const n2=notas2[nome];
+      if(!nome) return `<td colspan="${ncols}" style="padding:3px 5px;background:${bg};border-bottom:1px solid var(--border);border-left:3px solid #e2e8f0"></td>`;
+      const n1=notas1[nome]; const n2=notas2[nome]; const n3=notas3?notas3[nome]:undefined;
       const v1=n1!==undefined&&n1!==''&&n1!==null?n1:'—';
       const v2=n2!==undefined&&n2!==''&&n2!==null?n2:'—';
+      const v3=n3!==undefined&&n3!==''&&n3!==null?n3:'—';
       return `
         <td style="padding:3px 5px;font-size:11px;color:var(--navy);border-bottom:1px solid var(--border);background:${bg};border-left:3px solid #e2e8f0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:0">${esc(nome)}</td>
         <td style="padding:3px 4px;text-align:center;font-size:11px;font-weight:700;color:${notaColor(v1)};background:${notaBg(v1)};border-bottom:1px solid var(--border);white-space:nowrap">${v1}</td>
-        <td style="padding:3px 4px;text-align:center;font-size:11px;font-weight:700;color:${notaColor(v2)};background:${notaBg(v2)};border-bottom:1px solid var(--border);white-space:nowrap">${v2}</td>`;
+        <td style="padding:3px 4px;text-align:center;font-size:11px;font-weight:700;color:${notaColor(v2)};background:${notaBg(v2)};border-bottom:1px solid var(--border);white-space:nowrap">${v2}</td>
+        ${is3p?`<td style="padding:3px 4px;text-align:center;font-size:11px;font-weight:700;color:${notaColor(v3)};background:${notaBg(v3)};border-bottom:1px solid var(--border);white-space:nowrap">${v3}</td>`:''}`;
     }).join('');
     return `<tr>${cells}</tr>`;
   }).join('');
 
-  // Linha de Médias
-  const tfootCells = cols.map(({med1,med2})=>`
+  const tfootCells = cols.map(({med1,med2,med3})=>`
     <td style="padding:3px 5px;font-size:10px;font-weight:700;color:#0369a1;background:#e0f2fe;border-left:3px solid #0f172a;white-space:nowrap">Média</td>
     <td style="padding:3px 2px;text-align:center;font-size:11px;font-weight:800;color:${notaColor(med1)};background:#e0f2fe">${med1!==null?med1:'—'}</td>
     <td style="padding:3px 2px;text-align:center;font-size:11px;font-weight:800;color:${notaColor(med2)};background:#e0f2fe">${med2!==null?med2:'—'}</td>
+    ${is3p?`<td style="padding:3px 2px;text-align:center;font-size:11px;font-weight:800;color:${notaColor(med3)};background:#e0f2fe">${med3!==null?med3:'—'}</td>`:''}
   `).join('');
 
   return `<div class="card" style="margin-bottom:20px">
@@ -3146,7 +3159,7 @@ function renderResumoAnual(){
       <span style="font-size:11px;font-weight:500;color:var(--gray);background:var(--gray2);padding:2px 8px;border-radius:12px">Notas finais por turma</span>
     </div>
     <div style="overflow-x:auto;-webkit-overflow-scrolling:touch;padding-bottom:6px">
-      <table style="border-collapse:collapse;width:100%;table-layout:fixed;min-width:${nTurmas*160}px">
+      <table style="border-collapse:collapse;width:100%;table-layout:fixed;min-width:${nTurmas*180}px">
         <thead>
           <tr>${theadNames}</tr>
           <tr>${theadCols}</tr>
@@ -3395,6 +3408,8 @@ function renderSucessoTable(t){
   const qualRows=basico
     ?[[5,'5'],[4,'4'],[3,'3'],[2,'2'],[1,'1']]
     :[['>18a20','18 a 20'],['14a17','14 a 17'],['10a13','10 a 13'],['8a9','8 a 9'],['<8','< 8']];
+  const is3p=getNumPeriodos()===3;
+  const lbl1=getLabelPeriodo(1); const lbl2=getLabelPeriodo(2);
 
   const pct=(sem,k)=>{
     if(!sem) return '—';
@@ -3410,8 +3425,9 @@ function renderSucessoTable(t){
         <tr>
           <th style="padding:3px 4px;background:var(--navy);color:#fff;text-align:left;border:1px solid rgba(255,255,255,0.15);font-weight:600"></th>
           <th style="padding:3px 4px;background:var(--navy);color:#fff;text-align:center;border:1px solid rgba(255,255,255,0.15);font-weight:600"></th>
-          <th style="padding:3px 4px;background:var(--navy);color:#60a5fa;text-align:center;border:1px solid rgba(255,255,255,0.15);font-weight:600">1ºS</th>
-          <th style="padding:3px 4px;background:var(--navy);color:#86efac;text-align:center;border:1px solid rgba(255,255,255,0.15);font-weight:600">2ºS</th>
+          <th style="padding:3px 4px;background:var(--navy);color:#60a5fa;text-align:center;border:1px solid rgba(255,255,255,0.15);font-weight:600">${lbl1}</th>
+          <th style="padding:3px 4px;background:var(--navy);color:#86efac;text-align:center;border:1px solid rgba(255,255,255,0.15);font-weight:600">${lbl2}</th>
+          ${is3p?`<th style="padding:3px 4px;background:var(--navy);color:#fcd34d;text-align:center;border:1px solid rgba(255,255,255,0.15);font-weight:600">${getLabelPeriodo(3)}</th>`:''}
         </tr>
       </thead>
       <tbody>
@@ -3420,24 +3436,28 @@ function renderSucessoTable(t){
           <td style="padding:3px 4px;border:1px solid var(--border);color:var(--gray);font-size:9px">% alunos ${limiarLabel}</td>
           <td style="padding:3px 4px;border:1px solid var(--border);text-align:center;font-weight:700;color:#1d4ed8">${taxa(s1)}</td>
           <td style="padding:3px 4px;border:1px solid var(--border);text-align:center;font-weight:700;color:#16a34a">${taxa(s2)}</td>
+          ${is3p?`<td style="padding:3px 4px;border:1px solid var(--border);text-align:center;font-weight:700;color:#d97706">—</td>`:''}
         </tr>
         <tr>
           <td style="padding:2px 4px;border:1px solid var(--border);color:var(--gray);font-size:9px">com avaliação</td>
           <td style="padding:2px 4px;border:1px solid var(--border);text-align:center;color:#64748b">${s1?s1.total:'—'}</td>
           <td style="padding:2px 4px;border:1px solid var(--border);text-align:center;color:#64748b">${s2?s2.total:'—'}</td>
+          ${is3p?`<td style="padding:2px 4px;border:1px solid var(--border);text-align:center;color:#64748b">—</td>`:''}
         </tr>
-        <tr><td colspan="4" style="padding:0;border:none;height:4px"></td></tr>
+        <tr><td colspan="${is3p?5:4}" style="padding:0;border:none;height:4px"></td></tr>
         <tr>
           <td rowspan="${qualRows.length}" style="padding:3px 4px;border:1px solid var(--border);font-weight:600;color:var(--navy);font-size:9px;vertical-align:middle">Qualidade<br>do Sucesso</td>
           <td style="padding:3px 4px;border:1px solid var(--border);color:var(--gray);font-size:9px">${qualRows[0][1]}</td>
           <td style="padding:3px 4px;border:1px solid var(--border);text-align:center;font-weight:600">${pct(s1,qualRows[0][0])}</td>
           <td style="padding:3px 4px;border:1px solid var(--border);text-align:center;font-weight:600">${pct(s2,qualRows[0][0])}</td>
+          ${is3p?`<td style="padding:3px 4px;border:1px solid var(--border);text-align:center;font-weight:600">—</td>`:''}
         </tr>
         ${qualRows.slice(1).map(([k,label])=>`
         <tr>
           <td style="padding:3px 4px;border:1px solid var(--border);color:var(--gray);font-size:9px">${label}</td>
           <td style="padding:3px 4px;border:1px solid var(--border);text-align:center;font-weight:600">${pct(s1,k)}</td>
           <td style="padding:3px 4px;border:1px solid var(--border);text-align:center;font-weight:600">${pct(s2,k)}</td>
+          ${is3p?`<td style="padding:3px 4px;border:1px solid var(--border);text-align:center;font-weight:600">—</td>`:''}
         </tr>`).join('')}
       </tbody>
     </table>
@@ -3451,6 +3471,8 @@ function renderTurmaCard(t){
   const s1Entries=Object.entries(modsBySem).filter(([,v])=>v.s1>0).map(([m,v])=>[m,v.s1]).sort((a,b)=>b[1]-a[1]);
   const s2Entries=Object.entries(modsBySem).filter(([,v])=>v.s2>0).map(([m,v])=>[m,v.s2]).sort((a,b)=>b[1]-a[1]);
   const hasMods=s1Entries.length||s2Entries.length;
+  const is3p=getNumPeriodos()===3;
+  const lbl1=getLabelPeriodo(1); const lbl2=getLabelPeriodo(2);
 
   function semBadges(entries, colorClass){
     return entries.map(([m,c])=>`<span class="badge ${colorClass}">${m} <strong>${c}</strong></span>`).join('');
@@ -3459,11 +3481,11 @@ function renderTurmaCard(t){
   const modsHtml=hasMods?`
     <div style="margin-top:10px">
       ${s1Entries.length?`<div style="margin-bottom:6px">
-        <div style="font-size:10px;font-weight:700;color:#1d4ed8;margin-bottom:4px;text-transform:uppercase;letter-spacing:0.4px">1º Semestre</div>
+        <div style="font-size:10px;font-weight:700;color:#1d4ed8;margin-bottom:4px;text-transform:uppercase;letter-spacing:0.4px">${lbl1}</div>
         <div style="display:flex;flex-wrap:wrap;gap:3px">${semBadges(s1Entries,'badge-blue')}</div>
       </div>`:''}
       ${s2Entries.length?`<div>
-        <div style="font-size:10px;font-weight:700;color:#16a34a;margin-bottom:4px;text-transform:uppercase;letter-spacing:0.4px">2º Semestre</div>
+        <div style="font-size:10px;font-weight:700;color:#16a34a;margin-bottom:4px;text-transform:uppercase;letter-spacing:0.4px">${lbl2}</div>
         <div style="display:flex;flex-wrap:wrap;gap:3px">${semBadges(s2Entries,'badge-green')}</div>
       </div>`:''}
     </div>`:'';
@@ -3476,9 +3498,9 @@ function renderTurmaCard(t){
     <div class="turma-body">
       <div class="turma-stat"><span class="stat-label">Alunos</span><span class="stat-val">${t.alunos.length}</span></div>
       <table class="mini-table">
-        <tr><th></th><th>1ºS</th><th>2ºS</th><th>Total</th></tr>
-        <tr><td>Previstas</td><td>${prev.s1}</td><td>${prev.s2}</td><td><strong>${prev.s1+prev.s2}</strong></td></tr>
-        <tr><td>Dadas</td><td><span style="color:var(--green);font-weight:600">${aulas.s1}</span></td><td><span style="color:var(--green);font-weight:600">${aulas.s2}</span></td><td><strong style="color:var(--green)">${aulas.s1+aulas.s2}</strong></td></tr>
+        <tr><th></th><th>${lbl1}</th><th>${lbl2}</th>${is3p?`<th>${getLabelPeriodo(3)}</th>`:''}<th>Total</th></tr>
+        <tr><td>Previstas</td><td>${prev.s1}</td><td>${prev.s2}</td>${is3p?`<td>—</td>`:''}<td><strong>${prev.s1+prev.s2}</strong></td></tr>
+        <tr><td>Dadas</td><td><span style="color:var(--green);font-weight:600">${aulas.s1}</span></td><td><span style="color:var(--green);font-weight:600">${aulas.s2}</span></td>${is3p?`<td><span style="color:var(--green);font-weight:600">—</span></td>`:''}<td><strong style="color:var(--green)">${aulas.s1+aulas.s2}</strong></td></tr>
       </table>
       ${modsHtml}
       ${renderSucessoTable(t)}
@@ -4315,8 +4337,9 @@ function renderSumarios(){
       <div class="filter-bar">
         <select class="filter-select" id="filterTurmaSum">${turmasOpts}</select>
         <div class="semestre-tabs">
-          <button class="semestre-tab${filterSemestre==='1'?' active':''}" data-sem="1">1º Semestre</button>
-          <button class="semestre-tab${filterSemestre==='2'?' active':''}" data-sem="2">2º Semestre</button>
+          <button class="semestre-tab${filterSemestre==='1'?' active':''}" data-sem="1">${getLabelPeriodo(1)}</button>
+          <button class="semestre-tab${filterSemestre==='2'?' active':''}" data-sem="2">${getLabelPeriodo(2)}</button>
+          ${getNumPeriodos()===3?`<button class="semestre-tab${filterSemestre==='3'?' active':''}" data-sem="3">${getLabelPeriodo(3)}</button>`:''}
           <button class="semestre-tab${filterSemestre==='all'?' active':''}" data-sem="all">Todos</button>
         </div>
         <span style="font-size:12px;color:var(--gray)">${aulasOrdenadas.length} aulas</span>
@@ -4577,8 +4600,11 @@ function renderPlanificacao(){
     'G2':todasMods
   };
   const allMods=[...new Set(Object.values(espacosData).flat())].sort();
+  const is3p=getNumPeriodos()===3;
+  const lbl1=is3p?'1º Per.':'1º Sem.';
+  const lbl2=is3p?'2º Per.':'2º Sem.';
+  const lbl3='3º Per.';
 
-  // Seletor de turma
   if(!filterPlanTurma && S.turmas.length) filterPlanTurma=S.turmas[0].id;
   const turma = S.turmas.find(t=>t.id==filterPlanTurma);
   const turmasOpts=`<option value="">Selecionar turma...</option>${S.turmas.map(t=>`<option value="${t.id}"${filterPlanTurma==t.id?' selected':''}>${esc(t.nome)}</option>`).join('')}`;
@@ -4593,7 +4619,6 @@ function renderPlanificacao(){
       <div class="empty-msg">Selecione uma turma.</div></div>`;
   }
 
-  // Aulas previstas calculadas automaticamente (igual ao painel principal)
   const prev=getAulasPrevistas(turma.id);
   const p1=prev.s1, p2=prev.s2;
 
@@ -4601,28 +4626,22 @@ function renderPlanificacao(){
   if(!S.planificacao[turma.id]) S.planificacao[turma.id]={};
   const plan=S.planificacao[turma.id];
 
-  // Contar aulas dadas por modalidade E espaço (via campo modalidadeSumario do separador Sumários)
-  // O espaço é determinado pelo espaço rotacionado na semana em que o sumário foi registado
   function getCountsMod(modalidade, semestre, espaco){
     let n=0;
     const semanas=getSemanasLetivas();
     Object.entries(S.sumarios).forEach(([sumKey,s])=>{
-      // Usar o novo campo modalidadeSumario; ignorar se não preenchido
       if(!s.modalidadeSumario||s.modalidadeSumario!==modalidade) return;
       if(!s.sumario||s.turmaId!=turma.id) return;
       if(semestre!=='all'&&s.semestre!=semestre) return;
-      // Determinar o espaço desta aula a partir do sumKey (formato "YYYY-MM-DD_di_bi")
       const parts=sumKey.split('_');
       if(parts.length<3) return;
       const dt=parts[0];
       const slot=parts[1]+'_'+parts[2];
       const aulaBase=S.horario[slot];
       if(!aulaBase||aulaBase.turmaId!=turma.id) return;
-      // Calcular o índice da semana para obter o espaço rotacionado
       const weekIdx=semanas.findIndex(sem=>sem.includes(dt));
       if(weekIdx<0) return;
       const espacoRot=getEspacoRotacionado(aulaBase.espaco, weekIdx);
-      // Agrupar E1 e E2 no mesmo bloco "E1 + E2"
       const grupoRot=(espacoRot==='E1'||espacoRot==='E2')?'E1 + E2':espacoRot;
       if(grupoRot!==espaco) return;
       n++;
@@ -4630,7 +4649,6 @@ function renderPlanificacao(){
     return n;
   }
 
-  // Contar modalidades planeadas no Plano Semanal por modalidade E espaço
   function getPlanoSemanalMod(modalidade, semestre, espaco){
     let n=0;
     const semanas=getSemanasLetivas();
@@ -4646,7 +4664,6 @@ function renderPlanificacao(){
         if(!dt||isFeriadoOrPausa(dt)) return;
         const sem=getSemestre(dt);
         if(semestre!=='all'&&sem!==parseInt(semestre)) return;
-        // Verificar o espaço rotacionado desta semana
         const espacoRot=getEspacoRotacionado(aula.espaco, semanaIdx);
         const grupoRot=(espacoRot==='E1'||espacoRot==='E2')?'E1 + E2':espacoRot;
         if(grupoRot!==espaco) return;
@@ -4657,49 +4674,51 @@ function renderPlanificacao(){
   }
 
   const rows=allMods.map(m=>{
-    // Somar por espaço para evitar dupla contagem
-    let d1=0,d2=0,ps1=0,ps2=0;
+    let d1=0,d2=0,d3=0,ps1=0,ps2=0,ps3=0;
     Object.entries(espacosData).forEach(([esp,mods])=>{
       if(!mods.includes(m)) return;
       d1+=getCountsMod(m,'1',esp);
       d2+=getCountsMod(m,'2',esp);
+      if(is3p) d3+=getCountsMod(m,'3',esp);
       ps1+=getPlanoSemanalMod(m,'1',esp);
       ps2+=getPlanoSemanalMod(m,'2',esp);
+      if(is3p) ps3+=getPlanoSemanalMod(m,'3',esp);
     });
-    const p1=Object.entries(espacosData).reduce((s,[esp,mods])=>{
-      if(!mods.includes(m)) return s;
-      return s+(parseInt(plan[`${esp}__${m}`]?.previsto1s)||0);
-    },0);
-    const p2=Object.entries(espacosData).reduce((s,[esp,mods])=>{
-      if(!mods.includes(m)) return s;
-      return s+(parseInt(plan[`${esp}__${m}`]?.previsto2s)||0);
-    },0);
-    return {m,d1,d2,dt:d1+d2,p1,p2,ps1,ps2};
+    const p1v=Object.entries(espacosData).reduce((s,[esp,mods])=>!mods.includes(m)?s:s+(parseInt(plan[`${esp}__${m}`]?.previsto1s)||0),0);
+    const p2v=Object.entries(espacosData).reduce((s,[esp,mods])=>!mods.includes(m)?s:s+(parseInt(plan[`${esp}__${m}`]?.previsto2s)||0),0);
+    const p3v=is3p?Object.entries(espacosData).reduce((s,[esp,mods])=>!mods.includes(m)?s:s+(parseInt(plan[`${esp}__${m}`]?.previsto3s)||0),0):0;
+    return {m,d1,d2,d3,dt:d1+d2+d3,p1:p1v,p2:p2v,p3:p3v,ps1,ps2,ps3};
   });
 
-  // Totais globais = soma dos totais de cada espaço
-  let t1=0,t2=0,totalP1global=0,totalP2global=0,totalPS1global=0,totalPS2global=0;
+  let t1=0,t2=0,t3=0,totalP1global=0,totalP2global=0,totalP3global=0,totalPS1global=0,totalPS2global=0,totalPS3global=0;
   Object.entries(espacosData).forEach(([espaco,mods])=>{
     mods.forEach(m=>{
       const planKey=`${espaco}__${m}`;
       totalP1global+=(parseInt(plan[planKey]?.previsto1s)||0);
       totalP2global+=(parseInt(plan[planKey]?.previsto2s)||0);
+      if(is3p) totalP3global+=(parseInt(plan[planKey]?.previsto3s)||0);
       totalPS1global+=getPlanoSemanalMod(m,'1',espaco);
       totalPS2global+=getPlanoSemanalMod(m,'2',espaco);
+      if(is3p) totalPS3global+=getPlanoSemanalMod(m,'3',espaco);
       t1+=getCountsMod(m,'1',espaco);
       t2+=getCountsMod(m,'2',espaco);
+      if(is3p) t3+=getCountsMod(m,'3',espaco);
     });
   });
 
-  // Estilos de cabeçalho de grupo reutilizáveis
   const thGroup='style="text-align:center;background:var(--navy2);color:#fff;font-size:11px;padding:5px 4px;border:1px solid rgba(255,255,255,0.15)"';
   const thSub='style="text-align:center;background:#1e3a5f;color:#cbd5e1;font-size:10px;padding:4px 3px;border:1px solid rgba(255,255,255,0.1)"';
   const tdC='style="text-align:center;padding:4px 3px;font-size:12px;border:1px solid var(--border)"';
   const tdL='style="text-align:left;padding:4px 6px;font-size:12px;border:1px solid var(--border)"';
   const tdTot='style="text-align:center;padding:4px 3px;font-size:12px;font-weight:700;border:1px solid var(--border);background:#f8fafc"';
 
-  // Larguras fixas partilhadas por todos os quadros
-  const colGroup=`<colgroup>
+  const nDataCols=is3p?4:3; // per period group: p1,p2,[p3],total
+  const colGroup=is3p?`<colgroup>
+    <col style="width:160px">
+    <col style="width:50px"><col style="width:50px"><col style="width:50px"><col style="width:50px">
+    <col style="width:50px"><col style="width:50px"><col style="width:50px"><col style="width:50px">
+    <col style="width:50px"><col style="width:50px"><col style="width:50px"><col style="width:50px">
+  </colgroup>`:`<colgroup>
     <col style="width:180px">
     <col style="width:62px"><col style="width:62px"><col style="width:62px">
     <col style="width:62px"><col style="width:62px"><col style="width:62px">
@@ -4707,34 +4726,40 @@ function renderPlanificacao(){
   </colgroup>`;
   const tableStyle='style="width:100%;border-collapse:collapse;table-layout:fixed"';
 
+  const subHeaders=`
+    <th ${thSub}>${lbl1}</th><th ${thSub}>${lbl2}</th>${is3p?`<th ${thSub}>${lbl3}</th>`:''}<th ${thSub}>Total</th>
+    <th ${thSub}>${lbl1}</th><th ${thSub}>${lbl2}</th>${is3p?`<th ${thSub}>${lbl3}</th>`:''}<th ${thSub}>Total</th>
+    <th ${thSub}>${lbl1}</th><th ${thSub}>${lbl2}</th>${is3p?`<th ${thSub}>${lbl3}</th>`:''}<th ${thSub}>Total</th>`;
+
   function inputCell(espaco,m,sem,val){
     return `<td style="padding:2px 3px;border:1px solid var(--border)"><input type="number" min="0" class="plan-input" data-espaco="${esc(espaco)}" data-mod="${esc(m)}" data-sem="${sem}" value="${val||''}" placeholder="0" style="width:100%;box-sizing:border-box;text-align:center;border:1px solid var(--border);border-radius:4px;padding:3px 2px;font-size:12px"></td>`;
   }
 
-  return `<div style="display:flex;flex-direction:column;min-height:100%">
+  const cardItems=is3p?[
+    {l:`Aulas Previstas ${lbl1}`,v:p1,c:'var(--amber)',i:'📅'},
+    {l:`Aulas Previstas ${lbl2}`,v:p2,c:'var(--amber)',i:'📅'},
+    {l:`Aulas Previstas ${lbl3}`,v:0,c:'var(--amber)',i:'📅'},
+    {l:'Total Aulas Previstas',v:p1+p2,c:'var(--blue)',i:'📆'},
+  ]:[
+    {l:`Aulas Previstas ${lbl1}`,v:p1,c:'var(--amber)',i:'📅'},
+    {l:`Aulas Previstas ${lbl2}`,v:p2,c:'var(--amber)',i:'📅'},
+    {l:'Total Aulas Previstas',v:p1+p2,c:'var(--blue)',i:'📆'},
+  ];
 
-    <!-- ZONA FIXA (sticky) -->
+  return `<div style="display:flex;flex-direction:column;min-height:100%">
     <div style="position:sticky;top:0;z-index:10;background:#f0f2f5;padding-bottom:8px">
       <div class="filter-bar">
         <div class="section-title" style="margin:0">Planificação</div>
         <select class="filter-select" id="filterPlanTurmaS" style="min-width:180px">${turmasOpts}</select>
         <button class="btn btn-primary" id="savePlanBtn" style="margin-left:auto">💾 Guardar</button>
       </div>
-
-      <!-- CARTÕES RESUMO -->
-      <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:12px;margin-bottom:12px">
-        ${[
-          {l:'Aulas Previstas 1º Sem.',v:p1,c:'var(--amber)',i:'📅'},
-          {l:'Aulas Previstas 2º Sem.',v:p2,c:'var(--amber)',i:'📅'},
-          {l:'Total Aulas Previstas',v:p1+p2,c:'var(--blue)',i:'📆'},
-        ].map(s=>`<div class="card" style="text-align:center;background:var(--gray2)">
+      <div style="display:grid;grid-template-columns:repeat(${cardItems.length},1fr);gap:12px;margin-bottom:12px">
+        ${cardItems.map(s=>`<div class="card" style="text-align:center;background:var(--gray2)">
           <div style="font-size:18px;margin-bottom:4px">${s.i}</div>
           <div style="font-size:11px;color:var(--gray);font-weight:600;text-transform:uppercase;letter-spacing:0.5px;margin-bottom:4px">${s.l}</div>
           <div style="font-size:28px;font-weight:700;color:${s.c}">${s.v}</div>
         </div>`).join('')}
       </div>
-
-      <!-- QUADRO GLOBAL FIXO -->
       <div style="overflow-x:auto">
       <div class="card" style="margin-bottom:0">
         <table ${tableStyle}>
@@ -4742,28 +4767,27 @@ function renderPlanificacao(){
           <thead>
             <tr>
               <th rowspan="2" ${thGroup} style="text-align:left">Modalidade</th>
-              <th colspan="3" ${thGroup}>Previsão Anual Geral</th>
-              <th colspan="3" ${thGroup}>Planificação Anual Concreta</th>
-              <th colspan="3" ${thGroup}>Aulas dadas</th>
+              <th colspan="${nDataCols}" ${thGroup}>Previsão Anual Geral</th>
+              <th colspan="${nDataCols}" ${thGroup}>Planificação Anual Concreta</th>
+              <th colspan="${nDataCols}" ${thGroup}>Aulas dadas</th>
             </tr>
-            <tr>
-              <th ${thSub}>1º Sem.</th><th ${thSub}>2º Sem.</th><th ${thSub}>Total</th>
-              <th ${thSub}>1º Sem.</th><th ${thSub}>2º Sem.</th><th ${thSub}>Total</th>
-              <th ${thSub}>1º Sem.</th><th ${thSub}>2º Sem.</th><th ${thSub}>Total</th>
-            </tr>
+            <tr>${subHeaders}</tr>
           </thead>
           <tbody>
             <tr style="background:#f0f4ff">
               <td ${tdL} style="font-weight:700;font-size:15px;border:1px solid var(--border);color:var(--navy)">Total de Todos os Espaços</td>
               <td style="text-align:center;padding:6px 3px;font-size:16px;font-weight:700;border:1px solid var(--border);background:#f8fafc;color:var(--amber)">${totalP1global||'—'}</td>
               <td style="text-align:center;padding:6px 3px;font-size:16px;font-weight:700;border:1px solid var(--border);background:#f8fafc;color:var(--amber)">${totalP2global||'—'}</td>
-              <td style="text-align:center;padding:6px 3px;font-size:16px;font-weight:700;border:1px solid var(--border);background:#f8fafc;color:var(--amber)">${(totalP1global+totalP2global)||'—'}</td>
+              ${is3p?`<td style="text-align:center;padding:6px 3px;font-size:16px;font-weight:700;border:1px solid var(--border);background:#f8fafc;color:var(--amber)">${totalP3global||'—'}</td>`:''}
+              <td style="text-align:center;padding:6px 3px;font-size:16px;font-weight:700;border:1px solid var(--border);background:#f8fafc;color:var(--amber)">${(totalP1global+totalP2global+totalP3global)||'—'}</td>
               <td style="text-align:center;padding:6px 3px;font-size:16px;font-weight:700;border:1px solid var(--border);background:#f8fafc;color:#7c3aed">${totalPS1global||'—'}</td>
               <td style="text-align:center;padding:6px 3px;font-size:16px;font-weight:700;border:1px solid var(--border);background:#f8fafc;color:#7c3aed">${totalPS2global||'—'}</td>
-              <td style="text-align:center;padding:6px 3px;font-size:16px;font-weight:700;border:1px solid var(--border);background:#f8fafc;color:#7c3aed">${(totalPS1global+totalPS2global)||'—'}</td>
+              ${is3p?`<td style="text-align:center;padding:6px 3px;font-size:16px;font-weight:700;border:1px solid var(--border);background:#f8fafc;color:#7c3aed">${totalPS3global||'—'}</td>`:''}
+              <td style="text-align:center;padding:6px 3px;font-size:16px;font-weight:700;border:1px solid var(--border);background:#f8fafc;color:#7c3aed">${(totalPS1global+totalPS2global+totalPS3global)||'—'}</td>
               <td style="text-align:center;padding:6px 3px;font-size:16px;font-weight:700;border:1px solid var(--border);background:#f8fafc;color:var(--green)">${t1||'—'}</td>
               <td style="text-align:center;padding:6px 3px;font-size:16px;font-weight:700;border:1px solid var(--border);background:#f8fafc;color:var(--green)">${t2||'—'}</td>
-              <td style="text-align:center;padding:6px 3px;font-size:16px;font-weight:700;border:1px solid var(--border);background:#f8fafc;color:var(--blue)">${(t1+t2)||'—'}</td>
+              ${is3p?`<td style="text-align:center;padding:6px 3px;font-size:16px;font-weight:700;border:1px solid var(--border);background:#f8fafc;color:var(--green)">${t3||'—'}</td>`:''}
+              <td style="text-align:center;padding:6px 3px;font-size:16px;font-weight:700;border:1px solid var(--border);background:#f8fafc;color:var(--blue)">${(t1+t2+t3)||'—'}</td>
             </tr>
           </tbody>
         </table>
@@ -4771,81 +4795,80 @@ function renderPlanificacao(){
       </div>
     </div>
 
-    <!-- QUADROS POR ESPAÇO (scrollam normalmente) -->
     <div style="overflow-x:auto;padding-top:12px">
     ${Object.entries(espacosData).map(([espaco,mods])=>{
       const grupoKey=espaco==='E1 + E2'?'E1+E2':espaco;
       const prevEsp=getAulasPrevistasEspaco(turma.id)[grupoKey]||{s1:0,s2:0};
       const espacoRows=mods.map(m=>{
-        const d1=getCountsMod(m,'1',espaco), d2=getCountsMod(m,'2',espaco);
+        const d1=getCountsMod(m,'1',espaco), d2=getCountsMod(m,'2',espaco), d3=is3p?getCountsMod(m,'3',espaco):0;
         const planKey=`${espaco}__${m}`;
-        const p1=parseInt(plan[planKey]?.previsto1s)||0, p2=parseInt(plan[planKey]?.previsto2s)||0;
-        const ps1=getPlanoSemanalMod(m,'1',espaco), ps2=getPlanoSemanalMod(m,'2',espaco);
-        return {m,d1,d2,dt:d1+d2,p1,p2,ps1,ps2};
+        const p1v=parseInt(plan[planKey]?.previsto1s)||0, p2v=parseInt(plan[planKey]?.previsto2s)||0, p3v=is3p?(parseInt(plan[planKey]?.previsto3s)||0):0;
+        const ps1=getPlanoSemanalMod(m,'1',espaco), ps2=getPlanoSemanalMod(m,'2',espaco), ps3=is3p?getPlanoSemanalMod(m,'3',espaco):0;
+        return {m,d1,d2,d3,dt:d1+d2+d3,p1:p1v,p2:p2v,p3:p3v,ps1,ps2,ps3};
       });
       const totP1=espacoRows.reduce((s,r)=>s+r.p1,0);
       const totP2=espacoRows.reduce((s,r)=>s+r.p2,0);
+      const totP3=espacoRows.reduce((s,r)=>s+r.p3,0);
       const totPS1=espacoRows.reduce((s,r)=>s+r.ps1,0);
       const totPS2=espacoRows.reduce((s,r)=>s+r.ps2,0);
+      const totPS3=espacoRows.reduce((s,r)=>s+r.ps3,0);
       const totD1=espacoRows.reduce((s,r)=>s+r.d1,0);
       const totD2=espacoRows.reduce((s,r)=>s+r.d2,0);
+      const totD3=espacoRows.reduce((s,r)=>s+r.d3,0);
       return `
     <div class="card" style="margin-bottom:16px">
       <div style="display:flex;align-items:baseline;gap:14px;margin-bottom:10px">
         <div style="font-size:14px;font-weight:700;color:var(--navy)">Espaço ${espaco}</div>
-        <div style="font-size:16px;font-weight:700;color:var(--amber)">Previsto: ${prevEsp.s1} aulas 1ºS · ${prevEsp.s2} aulas 2ºS</div>
+        <div style="font-size:16px;font-weight:700;color:var(--amber)">Previsto: ${prevEsp.s1} aulas ${lbl1} · ${prevEsp.s2} aulas ${lbl2}${is3p?' · 0 aulas '+lbl3:''}</div>
       </div>
-      <div style="overflow-x:auto">
+      <div style="overflow:auto;max-height:320px;">
       <table ${tableStyle}>
         ${colGroup}
-        <thead>
+        <thead style="position:sticky;top:0;z-index:2">
           <tr>
             <th rowspan="2" ${thGroup} style="text-align:left">Modalidade</th>
-            <th colspan="3" ${thGroup}>Previsão Anual Geral</th>
-            <th colspan="3" ${thGroup}>Planificação Anual Concreta (Plano Semanal)</th>
-            <th colspan="3" ${thGroup}>Aulas dadas</th>
+            <th colspan="${nDataCols}" ${thGroup}>Previsão Anual Geral</th>
+            <th colspan="${nDataCols}" ${thGroup}>Planificação Anual Concreta (Plano Semanal)</th>
+            <th colspan="${nDataCols}" ${thGroup}>Aulas dadas</th>
           </tr>
-          <tr>
-            <th ${thSub}>1º Sem.</th><th ${thSub}>2º Sem.</th><th ${thSub}>Total</th>
-            <th ${thSub}>1º Sem.</th><th ${thSub}>2º Sem.</th><th ${thSub}>Total</th>
-            <th ${thSub}>1º Sem.</th><th ${thSub}>2º Sem.</th><th ${thSub}>Total</th>
-          </tr>
-          <tr style="background:#f0f4ff">
-            <td ${tdL} style="font-weight:700;font-size:15px;border:1px solid var(--border);color:var(--navy)">Total</td>
-            <td style="text-align:center;padding:2px 3px;font-size:16px;font-weight:700;border:1px solid var(--border);background:#f8fafc;color:var(--amber)">${totP1||'—'}</td>
-            <td style="text-align:center;padding:2px 3px;font-size:16px;font-weight:700;border:1px solid var(--border);background:#f8fafc;color:var(--amber)">${totP2||'—'}</td>
-            <td style="text-align:center;padding:2px 3px;font-size:16px;font-weight:700;border:1px solid var(--border);background:#f8fafc;color:var(--amber)">${(totP1+totP2)||'—'}</td>
-            <td style="text-align:center;padding:2px 3px;font-size:16px;font-weight:700;border:1px solid var(--border);background:#f8fafc;color:#7c3aed">${totPS1||'—'}</td>
-            <td style="text-align:center;padding:2px 3px;font-size:16px;font-weight:700;border:1px solid var(--border);background:#f8fafc;color:#7c3aed">${totPS2||'—'}</td>
-            <td style="text-align:center;padding:2px 3px;font-size:16px;font-weight:700;border:1px solid var(--border);background:#f8fafc;color:#7c3aed">${(totPS1+totPS2)||'—'}</td>
-            <td style="text-align:center;padding:2px 3px;font-size:16px;font-weight:700;border:1px solid var(--border);background:#f8fafc;color:var(--green)">${totD1||'—'}</td>
-            <td style="text-align:center;padding:2px 3px;font-size:16px;font-weight:700;border:1px solid var(--border);background:#f8fafc;color:var(--green)">${totD2||'—'}</td>
-            <td style="text-align:center;padding:2px 3px;font-size:16px;font-weight:700;border:1px solid var(--border);background:#f8fafc;color:var(--blue)">${(totD1+totD2)||'—'}</td>
-          </tr>
+          <tr>${subHeaders}</tr>
         </thead>
-      </table>
-      <div style="max-height:220px;overflow-y:auto">
-      <table ${tableStyle}>
-        ${colGroup}
         <tbody>
+          <tr style="background:#f0f4ff;position:sticky;top:54px;z-index:1">
+            <td ${tdL} style="font-weight:700;font-size:13px;border:1px solid var(--border);color:var(--navy);background:#f0f4ff">Total</td>
+            <td style="text-align:center;padding:4px 3px;font-size:13px;font-weight:700;border:1px solid var(--border);background:#f0f4ff;color:var(--amber)">${totP1||'—'}</td>
+            <td style="text-align:center;padding:4px 3px;font-size:13px;font-weight:700;border:1px solid var(--border);background:#f0f4ff;color:var(--amber)">${totP2||'—'}</td>
+            ${is3p?`<td style="text-align:center;padding:4px 3px;font-size:13px;font-weight:700;border:1px solid var(--border);background:#f0f4ff;color:var(--amber)">${totP3||'—'}</td>`:''}
+            <td style="text-align:center;padding:4px 3px;font-size:13px;font-weight:700;border:1px solid var(--border);background:#f0f4ff;color:var(--amber)">${(totP1+totP2+totP3)||'—'}</td>
+            <td style="text-align:center;padding:4px 3px;font-size:13px;font-weight:700;border:1px solid var(--border);background:#f0f4ff;color:#7c3aed">${totPS1||'—'}</td>
+            <td style="text-align:center;padding:4px 3px;font-size:13px;font-weight:700;border:1px solid var(--border);background:#f0f4ff;color:#7c3aed">${totPS2||'—'}</td>
+            ${is3p?`<td style="text-align:center;padding:4px 3px;font-size:13px;font-weight:700;border:1px solid var(--border);background:#f0f4ff;color:#7c3aed">${totPS3||'—'}</td>`:''}
+            <td style="text-align:center;padding:4px 3px;font-size:13px;font-weight:700;border:1px solid var(--border);background:#f0f4ff;color:#7c3aed">${(totPS1+totPS2+totPS3)||'—'}</td>
+            <td style="text-align:center;padding:4px 3px;font-size:13px;font-weight:700;border:1px solid var(--border);background:#f0f4ff;color:var(--green)">${totD1||'—'}</td>
+            <td style="text-align:center;padding:4px 3px;font-size:13px;font-weight:700;border:1px solid var(--border);background:#f0f4ff;color:var(--green)">${totD2||'—'}</td>
+            ${is3p?`<td style="text-align:center;padding:4px 3px;font-size:13px;font-weight:700;border:1px solid var(--border);background:#f0f4ff;color:var(--green)">${totD3||'—'}</td>`:''}
+            <td style="text-align:center;padding:4px 3px;font-size:13px;font-weight:700;border:1px solid var(--border);background:#f0f4ff;color:var(--blue)">${(totD1+totD2+totD3)||'—'}</td>
+          </tr>
           ${espacoRows.map(r=>{
-            const over1=r.p1>0&&r.d1>r.p1, over2=r.p2>0&&r.d2>r.p2;
+            const over1=r.p1>0&&r.d1>r.p1, over2=r.p2>0&&r.d2>r.p2, over3=r.p3>0&&r.d3>r.p3;
             return `<tr>
               <td ${tdL}>${r.m}</td>
               ${inputCell(espaco,r.m,'1',r.p1)}
               ${inputCell(espaco,r.m,'2',r.p2)}
-              <td ${tdTot} style="color:var(--amber)">${(r.p1+r.p2)||''}</td>
+              ${is3p?inputCell(espaco,r.m,'3',r.p3):''}
+              <td ${tdTot} style="color:var(--amber)">${(r.p1+r.p2+r.p3)||''}</td>
               <td ${tdC} style="color:#7c3aed;font-weight:600">${r.ps1||''}</td>
               <td ${tdC} style="color:#7c3aed;font-weight:600">${r.ps2||''}</td>
-              <td ${tdTot} style="color:#7c3aed">${(r.ps1+r.ps2)||''}</td>
+              ${is3p?`<td ${tdC} style="color:#7c3aed;font-weight:600">${r.ps3||''}</td>`:''}
+              <td ${tdTot} style="color:#7c3aed">${(r.ps1+r.ps2+r.ps3)||''}</td>
               <td ${tdC} style="color:${over1?'var(--red)':'var(--green)'};font-weight:600">${r.d1||''}</td>
               <td ${tdC} style="color:${over2?'var(--red)':'var(--green)'};font-weight:600">${r.d2||''}</td>
+              ${is3p?`<td ${tdC} style="color:${over3?'var(--red)':'var(--green)'};font-weight:600">${r.d3||''}</td>`:''}
               <td ${tdTot} style="color:var(--blue)">${r.dt||''}</td>
             </tr>`;
           }).join('')}
         </tbody>
       </table>
-      </div>
       </div>
     </div>`;
     }).join('')}
@@ -5638,7 +5661,7 @@ function attachEvents(){
     collectAndSaveAval();
     const turma=S.turmas.find(t=>t.id==filterAvaliacaoTurma);
     if(!turma){ alert('Seleciona uma turma primeiro.'); return; }
-    const sem = filterAvaliacaoSub==='sem2' ? 2 : 1;
+    const sem = filterAvaliacaoSub==='sem2' ? 2 : filterAvaliacaoSub==='sem3' ? 3 : 1;
     exportAvaliacaoExcel(turma, sem);
   });
 
@@ -5719,7 +5742,7 @@ function attachEvents(){
       // Preservar ordem das linhas conforme aparecem no DOM
       const orderedRids=[...document.querySelectorAll('tr[data-rid]')].map(r=>r.dataset.rid).filter(Boolean);
       S.avaliacao[amKey].linhas=orderedRids.map(rid=>linhasMap[rid]).filter(Boolean);
-    } else if(filterAvaliacaoSub==='fitescola'||filterAvaliacaoSub==='fitescola1s'||filterAvaliacaoSub==='fitescola2s'){
+    } else if(filterAvaliacaoSub==='fitescola'||filterAvaliacaoSub==='fitescola1s'||filterAvaliacaoSub==='fitescola2s'||filterAvaliacaoSub==='fitescola3s'){
       if(!S.avaliacao[key]) S.avaliacao[key]={resultados:{},obs:''};
       document.querySelectorAll('.fite-input').forEach(el=>{
         const nome=el.dataset.nome; const teste=el.dataset.teste; const val=el.value.trim();
@@ -5731,14 +5754,17 @@ function attachEvents(){
       if(!S.avaliacao[key]) S.avaliacao[key]={notas:{},obsAlunos:{},atividadesTitulos:['ANDEBOL','BASQUETEBOL','FUTEBOL','VOLEIBOL','GINÁSTICA','DANÇA','ATLETISMO','CORFEBOL','FRISBEE','HÓQUEI','ORIENTAÇÃO','RAQUETES','RUGBY','SOFTBOL'],ativNotas:{},obs:''};
       const titulos=Array(14).fill('');
       document.querySelectorAll('.ativ-titulo').forEach(el=>{ titulos[parseInt(el.dataset.idx)]=el.value; });
-      if(filterAvaliacaoSub!=='sem2'){
+      if(filterAvaliacaoSub!=='sem2'&&filterAvaliacaoSub!=='sem3'){
         S.avaliacao[key].atividadesTitulos=titulos;
       }
       if(filterAvaliacaoSub==='sem1'){
-        // O 2º Semestre herda sempre os títulos definidos no 1º Semestre
+        // O 2º e 3º herdam sempre os títulos definidos no 1º
         const sem2Key=`${filterAvaliacaoTurma}__sem2`;
         if(!S.avaliacao[sem2Key]) S.avaliacao[sem2Key]={notas:{},obsAlunos:{},ativNotas:{},obs:''};
         S.avaliacao[sem2Key].atividadesTitulos=[...titulos];
+        const sem3Key=`${filterAvaliacaoTurma}__sem3`;
+        if(!S.avaliacao[sem3Key]) S.avaliacao[sem3Key]={notas:{},obsAlunos:{},ativNotas:{},obs:''};
+        S.avaliacao[sem3Key].atividadesTitulos=[...titulos];
       }
       if(!S.avaliacao[key].ativNotas) S.avaliacao[key].ativNotas={};
       document.querySelectorAll('.ativ-nota').forEach(el=>{
@@ -5916,7 +5942,7 @@ function attachEvents(){
   function updateResumoRow(row){
     if(!row) return;
     const ano=row.dataset.ano||'';
-    const isSem2Row=filterAvaliacaoSub==='sem2';
+    const isSem2Row=filterAvaliacaoSub==='sem2'||filterAvaliacaoSub==='sem3';
     const nMelhores=isSem2Row?(ano==='7º'?5:6):(ano==='7º'?2:3);
     const inputs=[...row.querySelectorAll('.ativ-nota')];
     const rawVals=inputs.map(el=>parseFloat(el.value)||0);
@@ -7474,7 +7500,7 @@ function renderModalReuniao(){
 function fixAidStickyMobile(){
   if(!isMobile()) return;
   // Só actua nas tabelas AID/sem1/sem2 (não Fitescola que já tem sticky próprio)
-  if(filterAvaliacaoSub==='fitescola'||filterAvaliacaoSub==='fitescola1s'||filterAvaliacaoSub==='fitescola2s') return;
+  if(filterAvaliacaoSub==='fitescola'||filterAvaliacaoSub==='fitescola1s'||filterAvaliacaoSub==='fitescola2s'||filterAvaliacaoSub==='fitescola3s') return;
   const wrapper=document.getElementById('aval-table-wrapper');
   if(!wrapper) return;
   // Garantir overflow correcto no wrapper
