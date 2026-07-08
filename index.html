@@ -4596,6 +4596,31 @@ function renderAlunoModal(){
     </tr>`;
   }).join('');
 
+  // ── Níveis de Desempenho por Modalidade ─────────────────────────────────────
+  const ativTitulosResumo=getAtividadesTitulos(turma.id,'sem1');
+  function notaToNivel(v){
+    const n=parseFloat(v);
+    if(!n||n<=0) return '—';
+    if(n===0.5) return 'P. Introdutório';
+    if(n===1) return 'Introdutório';
+    if(n===1.5) return 'P. Elementar';
+    if(n===2) return 'Elementar';
+    if(n===2.5) return 'P. Avançado';
+    if(n===3) return 'Avançado';
+    return String(n);
+  }
+  const ativRows=ativTitulosResumo.map((tit,ci)=>{
+    const cells=semKeys.map(k=>{
+      const d=S.avaliacao[`${turma.id}__${k}`]||{};
+      const v=d.ativNotas?.[nome]?.[ci];
+      return `<td style="padding:5px 8px;font-size:12px;text-align:center;border:1px solid var(--border)">${notaToNivel(v)}</td>`;
+    }).join('');
+    return `<tr>
+      <td style="padding:5px 8px;font-size:12px;font-weight:600;border:1px solid var(--border);color:var(--navy)">${esc(tit||'—')}</td>
+      ${cells}
+    </tr>`;
+  }).join('');
+
   // ── Faltas ─────────────────────────────────────────────────────────────────
   let nPresencas=0,nFP=0,nFA=0,nFM=0,nFD=0;
   Object.entries(S.sumarios||{}).forEach(([sumKey,s])=>{
@@ -4659,7 +4684,7 @@ function renderAlunoModal(){
             <div class="aluno-section-title">📝 Autoavaliação (Ficha AA)</div>
             <table style="width:100%;border-collapse:collapse">
               <thead><tr>
-                <th style="padding:5px 8px;background:var(--navy);color:#fff;font-size:11px;text-align:left;border:1px solid rgba(255,255,255,0.2)">Período</th>
+                <th style="padding:5px 8px;background:var(--navy);color:#fff;font-size:11px;text-align:left;border:1px solid rgba(255,255,255,0.2)">Momento</th>
                 <th style="padding:5px 8px;background:var(--navy);color:#fff;font-size:11px;text-align:center;border:1px solid rgba(255,255,255,0.2)">Nota AA</th>
               </tr></thead>
               <tbody>${fichaRows}</tbody>
@@ -4671,12 +4696,23 @@ function renderAlunoModal(){
           <div class="aluno-section-title">📋 Avaliação</div>
           <table style="width:100%;border-collapse:collapse">
             <thead><tr>
-              <th style="padding:5px 8px;background:var(--navy);color:#fff;font-size:11px;text-align:left;border:1px solid rgba(255,255,255,0.2)">Período</th>
+              <th style="padding:5px 8px;background:var(--navy);color:#fff;font-size:11px;text-align:left;border:1px solid rgba(255,255,255,0.2)">Momento</th>
               <th style="padding:5px 8px;background:var(--navy);color:#fff;font-size:11px;text-align:center;border:1px solid rgba(255,255,255,0.2)">Nota Prof.</th>
               <th style="padding:5px 8px;background:var(--navy);color:#fff;font-size:11px;text-align:center;border:1px solid rgba(255,255,255,0.2)">Autoaval.</th>
               <th style="padding:5px 8px;background:var(--navy);color:#fff;font-size:11px;text-align:center;border:1px solid rgba(255,255,255,0.2)">Nota Final</th>
             </tr></thead>
             <tbody>${semRows}</tbody>
+          </table>
+        </div>
+
+        <div class="aluno-section">
+          <div class="aluno-section-title">🏐 Níveis de Desempenho</div>
+          <table style="width:100%;border-collapse:collapse">
+            <thead><tr>
+              <th style="padding:5px 8px;background:var(--navy);color:#fff;font-size:11px;text-align:left;border:1px solid rgba(255,255,255,0.2)">Modalidade</th>
+              ${semLabels.map(l=>`<th style="padding:5px 8px;background:var(--navy);color:#fff;font-size:11px;text-align:center;border:1px solid rgba(255,255,255,0.2)">${l}</th>`).join('')}
+            </tr></thead>
+            <tbody>${ativRows}</tbody>
           </table>
         </div>
 
