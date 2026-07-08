@@ -4567,17 +4567,29 @@ function renderAlunoModal(){
   const nPer=is3p?3:2;
   if(!S.avaliacao) S.avaliacao={};
 
-  // ── Fitescola ──────────────────────────────────────────────────────────────
+  // ── Fitescola (detalhe por teste) ────────────────────────────────────────────
   const fitKeys=['fitescola','fitescola1s','fitescola2s',...(is3p?['fitescola3s']:[])];
   const fitLabels=['AID',getLabelPeriodo(1),getLabelPeriodo(2),...(is3p?[getLabelPeriodo(3)]:[])];
-  const fitRows=fitKeys.map((k,i)=>{
+  const idadeClamp=idadeNum===null||idadeNum===undefined?null:Math.max(9,Math.min(18,idadeNum));
+  const fitRef=(gen==='M'||gen==='F')?(FITESCOLA_TB[gen]?.[idadeClamp]||FITESCOLA_TB[gen]?.[15]||null):null;
+  const fitDetailRows=FITESCOLA_TESTES.map(t=>{
+    const cells=fitKeys.map(k=>{
+      const d=S.avaliacao[`${turma.id}__${k}`]||{};
+      const val=d.resultados?.[nome]?.[t.id]??'';
+      const ev=fitEval(val, fitRef?fitRef[t.id]:null, t.higher, t.id==='milha');
+      return `<td style="padding:4px 6px;font-size:11px;text-align:center;border:1px solid var(--border)">${val!==''?val:'—'}</td>
+      <td style="padding:4px 6px;font-size:11px;text-align:center;border:1px solid var(--border);font-weight:700;color:${ev.color}">${ev.label}</td>`;
+    }).join('');
+    return `<tr>
+      <td style="padding:4px 6px;font-size:11px;font-weight:600;border:1px solid var(--border);color:var(--navy);white-space:nowrap">${t.label}</td>
+      ${cells}
+    </tr>`;
+  }).join('');
+  const fitPontosCells=fitKeys.map(k=>{
     const d=S.avaliacao[`${turma.id}__${k}`]||{};
     const res=d.resultados?.[nome]||{};
     const pontos=d.fitPontosOverride?.[nome]??calcFitPontos?.(res,gen,idadeNum)??'';
-    return `<tr>
-      <td style="padding:5px 8px;font-size:12px;font-weight:600;border:1px solid var(--border);color:var(--navy)">${fitLabels[i]}</td>
-      <td style="padding:5px 8px;font-size:12px;text-align:center;border:1px solid var(--border)">${pontos!==''?pontos:'—'}</td>
-    </tr>`;
+    return `<td colspan="2" style="padding:4px 6px;font-size:11px;text-align:center;border:1px solid var(--border);font-weight:800;color:var(--navy)">${pontos!==''?pontos:'—'}</td>`;
   }).join('');
 
   // ── Avaliação por período ──────────────────────────────────────────────────
@@ -4634,17 +4646,6 @@ function renderAlunoModal(){
   });
   const totalAulas=nPresencas+nFP+nFA+nFM+nFD;
 
-  // ── Ficha AA ───────────────────────────────────────────────────────────────
-  const fichaRows=[1,2,...(is3p?[3]:[])].map(sem=>{
-    const k=`${turma.id}__sem${sem}`;
-    const fichaData=S.fichaAA?.[k]?.fichas?.[nome]||S.fichaAA?.[k]?.[nome];
-    const notaAA=fichaData?.nota_aa??S.avaliacao?.[`${turma.id}__sem${sem}`]?.autoAval?.[nome]??'';
-    return `<tr>
-      <td style="padding:5px 8px;font-size:12px;font-weight:600;border:1px solid var(--border);color:var(--navy)">${getLabelPeriodo(sem)}</td>
-      <td style="padding:5px 8px;font-size:12px;text-align:center;border:1px solid var(--border)">${notaAA!==''?notaAA:'—'}</td>
-    </tr>`;
-  }).join('');
-
   return `<div class="aluno-modal-overlay" id="alunoModalOverlay">
     <div class="aluno-modal">
       <div class="aluno-modal-header">
@@ -4668,28 +4669,39 @@ function renderAlunoModal(){
           </div>
         </div>
 
-        <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;flex-wrap:wrap">
-          <div class="aluno-section">
-            <div class="aluno-section-title">🏃 Fitescola</div>
-            <table style="width:100%;border-collapse:collapse">
-              <thead><tr>
-                <th style="padding:5px 8px;background:var(--navy);color:#fff;font-size:11px;text-align:left;border:1px solid rgba(255,255,255,0.2)">Momento</th>
-                <th style="padding:5px 8px;background:var(--navy);color:#fff;font-size:11px;text-align:center;border:1px solid rgba(255,255,255,0.2)">Pontos</th>
-              </tr></thead>
-              <tbody>${fitRows}</tbody>
-            </table>
+        <div class="aluno-section">
+          <div class="aluno-section-title">🏃 Fitescola</div>
+          <div style="overflow-x:auto">
+          <table style="width:100%;border-collapse:collapse">
+            <thead>
+              <tr>
+                <th rowspan="2" style="padding:5px 6px;background:var(--navy);color:#fff;font-size:11px;text-align:left;border:1px solid rgba(255,255,255,0.2)">Teste</th>
+                ${fitLabels.map(l=>`<th colspan="2" style="padding:5px 6px;background:var(--navy);color:#fff;font-size:11px;text-align:center;border:1px solid rgba(255,255,255,0.2)">${l}</th>`).join('')}
+              </tr>
+              <tr>
+                ${fitLabels.map(()=>`<th style="padding:4px 6px;background:#1e3a5f;color:#fff;font-size:10px;text-align:center;border:1px solid rgba(255,255,255,0.2)">Res.</th><th style="padding:4px 6px;background:#1e3a5f;color:#fff;font-size:10px;text-align:center;border:1px solid rgba(255,255,255,0.2)">Aval.</th>`).join('')}
+              </tr>
+            </thead>
+            <tbody>
+              ${fitDetailRows}
+              <tr>
+                <td style="padding:4px 6px;font-size:11px;font-weight:700;border:1px solid var(--border);color:var(--navy)">Pontos</td>
+                ${fitPontosCells}
+              </tr>
+            </tbody>
+          </table>
           </div>
+        </div>
 
-          <div class="aluno-section">
-            <div class="aluno-section-title">📝 Autoavaliação (Ficha AA)</div>
-            <table style="width:100%;border-collapse:collapse">
-              <thead><tr>
-                <th style="padding:5px 8px;background:var(--navy);color:#fff;font-size:11px;text-align:left;border:1px solid rgba(255,255,255,0.2)">Momento</th>
-                <th style="padding:5px 8px;background:var(--navy);color:#fff;font-size:11px;text-align:center;border:1px solid rgba(255,255,255,0.2)">Nota AA</th>
-              </tr></thead>
-              <tbody>${fichaRows}</tbody>
-            </table>
-          </div>
+        <div class="aluno-section">
+          <div class="aluno-section-title">🏐 Níveis de Desempenho</div>
+          <table style="width:100%;border-collapse:collapse">
+            <thead><tr>
+              <th style="padding:5px 8px;background:var(--navy);color:#fff;font-size:11px;text-align:left;border:1px solid rgba(255,255,255,0.2)">Modalidade</th>
+              ${semLabels.map(l=>`<th style="padding:5px 8px;background:var(--navy);color:#fff;font-size:11px;text-align:center;border:1px solid rgba(255,255,255,0.2)">${l}</th>`).join('')}
+            </tr></thead>
+            <tbody>${ativRows}</tbody>
+          </table>
         </div>
 
         <div class="aluno-section">
@@ -4702,17 +4714,6 @@ function renderAlunoModal(){
               <th style="padding:5px 8px;background:var(--navy);color:#fff;font-size:11px;text-align:center;border:1px solid rgba(255,255,255,0.2)">Nota Final</th>
             </tr></thead>
             <tbody>${semRows}</tbody>
-          </table>
-        </div>
-
-        <div class="aluno-section">
-          <div class="aluno-section-title">🏐 Níveis de Desempenho</div>
-          <table style="width:100%;border-collapse:collapse">
-            <thead><tr>
-              <th style="padding:5px 8px;background:var(--navy);color:#fff;font-size:11px;text-align:left;border:1px solid rgba(255,255,255,0.2)">Modalidade</th>
-              ${semLabels.map(l=>`<th style="padding:5px 8px;background:var(--navy);color:#fff;font-size:11px;text-align:center;border:1px solid rgba(255,255,255,0.2)">${l}</th>`).join('')}
-            </tr></thead>
-            <tbody>${ativRows}</tbody>
           </table>
         </div>
 
