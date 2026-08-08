@@ -3222,32 +3222,47 @@ function renderPainel(){
     </div>`;
   }
 
-  const s1Entries=Object.entries(modsBySem).filter(([,v])=>v.s1>0).map(([m,v])=>[m,v.s1]).sort((a,b)=>b[1]-a[1]);
-  const s2Entries=Object.entries(modsBySem).filter(([,v])=>v.s2>0).map(([m,v])=>[m,v.s2]).sort((a,b)=>b[1]-a[1]);
-  const hasMods=s1Entries.length||s2Entries.length;
+  // Juntar modalidades lecionadas (de sumários) com planeadas (de modalidadesSemana) — mostrar todas
+  const todasMods=new Set();
+  Object.values(modsBySem).forEach(()=>{});
+  Object.keys(modsBySem).forEach(m=>todasMods.add(m));
+  // Adicionar modalidades planeadas no plano semanal (mesmo que ainda sem sumário)
+  Object.values(S.modalidadesSemana||{}).forEach(slots=>{
+    Object.values(slots).forEach(mod=>{ if(mod) todasMods.add(mod); });
+  });
+  // Construir lista ordenada alfabeticamente com contagens de ambos os semestres
+  const allMods=[...todasMods].sort((a,b)=>a.localeCompare(b,'pt'));
+  const s1Total=Object.values(modsBySem).reduce((s,v)=>s+v.s1,0);
+  const s2Total=Object.values(modsBySem).reduce((s,v)=>s+v.s2,0);
 
-  const modSection=hasMods?`
+  const modSection=`
     <div class="card" style="margin-bottom:20px">
       <div style="font-size:14px;font-weight:700;color:var(--navy);margin-bottom:16px">📊 Modalidades Lecionadas</div>
-      <div style="display:grid;grid-template-columns:1fr 1fr;gap:20px">
-        <div>
-          <div style="display:flex;align-items:center;gap:8px;margin-bottom:10px">
-            <span style="background:#dbeafe;color:#1d4ed8;padding:3px 10px;border-radius:20px;font-size:11px;font-weight:700">1º SEMESTRE</span>
-            <span style="font-size:11px;color:var(--gray)">${totalS1} aula${totalS1!==1?'s':''}</span>
-          </div>
-          ${renderModGrid(s1Entries,totalS1,'#2563eb','#eff6ff')}
-        </div>
-        <div>
-          <div style="display:flex;align-items:center;gap:8px;margin-bottom:10px">
-            <span style="background:#dcfce7;color:#16a34a;padding:3px 10px;border-radius:20px;font-size:11px;font-weight:700">2º SEMESTRE</span>
-            <span style="font-size:11px;color:var(--gray)">${totalS2} aula${totalS2!==1?'s':''}</span>
-          </div>
-          ${renderModGrid(s2Entries,totalS2,'#16a34a','#f0fdf4')}
-        </div>
-      </div>
-    </div>`
-  :`<div class="card" style="margin-bottom:20px;text-align:center;color:var(--gray);font-size:13px;padding:32px">
-      Ainda não há modalidades registadas. Insira modalidades no Plano Semanal e adicione sumários.
+      ${allMods.length===0?`<div style="font-size:12px;color:var(--gray);font-style:italic">Ainda sem modalidades planeadas no Plano Semanal.</div>`:`
+      <div style="display:grid;grid-template-columns:minmax(140px,1.5fr) 1fr 1fr;gap:0;border:1px solid var(--border);border-radius:8px;overflow:hidden">
+        <div style="background:#f8fafc;padding:8px 12px;font-size:11px;font-weight:700;color:var(--gray);text-transform:uppercase;border-bottom:1px solid var(--border)">Modalidade</div>
+        <div style="background:#dbeafe;padding:8px 12px;font-size:11px;font-weight:700;color:#1d4ed8;text-align:center;border-bottom:1px solid var(--border);border-left:1px solid var(--border)">1º Semestre <span style="font-weight:400;opacity:0.7">(${s1Total} aulas)</span></div>
+        <div style="background:#dcfce7;padding:8px 12px;font-size:11px;font-weight:700;color:#16a34a;text-align:center;border-bottom:1px solid var(--border);border-left:1px solid var(--border)">2º Semestre <span style="font-weight:400;opacity:0.7">(${s2Total} aulas)</span></div>
+        ${allMods.map((mod,i)=>{
+          const v=modsBySem[mod]||{s1:0,s2:0};
+          const bg=i%2===0?'#fff':'#f8fafc';
+          const pct1=s1Total>0?Math.round(v.s1/s1Total*100):0;
+          const pct2=s2Total>0?Math.round(v.s2/s2Total*100):0;
+          const barCell=(count,pct,color,colorBg)=>`
+            <div style="background:${colorBg};padding:8px 12px;border-left:1px solid var(--border);border-bottom:1px solid var(--border)">
+              <div style="display:flex;align-items:center;gap:8px">
+                <div style="flex:1;height:5px;background:#e2e8f0;border-radius:3px;overflow:hidden">
+                  <div style="height:100%;width:${pct}%;background:${color};border-radius:3px;transition:width 0.3s"></div>
+                </div>
+                <span style="font-size:12px;font-weight:700;color:${count>0?color:'#cbd5e1'};min-width:16px;text-align:right">${count||'—'}</span>
+              </div>
+            </div>`;
+          return `
+            <div style="background:${bg};padding:8px 12px;border-bottom:1px solid var(--border);font-size:12px;font-weight:600;color:var(--navy);display:flex;align-items:center">${esc(mod)}</div>
+            ${barCell(v.s1,pct1,'#2563eb','#f0f9ff')}
+            ${barCell(v.s2,pct2,'#16a34a','#f0fdf4')}`;
+        }).join('')}
+      </div>`}
     </div>`;
 
   const _avisos=calcAvisos();
@@ -4156,14 +4171,25 @@ function getAulasDadasPlanificacao(turmaId){
   return {s1, s2};
 }
 
+// Retorna a data de fim do ano letivo para uma turma (respeitando fimAnos por escolaridade)
+function getFimAnoTurma(turmaId){
+  const turma=S.turmas.find(t=>t.id==turmaId);
+  const ano=turma?.ano||'';
+  const cal=S.calendario||{};
+  const fimAnos=cal.fimAnos||{};
+  // Prioridade: fimAnos[ano] > fim1s (último dia do calendário geral)
+  return fimAnos[ano]||cal.fim1s||'9999-12-31';
+}
+
 function getAulasPrevistas(turmaId){
   let s1=0,s2=0;
   const semanas=getSemanasLetivas();
+  const fimTurma=getFimAnoTurma(turmaId);
   Object.entries(S.horario).forEach(([slot,data])=>{
     if(data&&data.turmaId===turmaId){
       semanas.forEach(semana=>{
         const dt=getDateForSlot(semana,slot);
-        if(dt&&!isFeriadoOrPausa(dt)){const sem=getSemestre(dt);if(sem===1)s1++;else if(sem===2)s2++;}
+        if(dt&&dt<=fimTurma&&!isFeriadoOrPausa(dt)){const sem=getSemestre(dt);if(sem===1)s1++;else if(sem===2)s2++;}
       });
     }
   });
@@ -4176,11 +4202,12 @@ function getAulasPrevistas(turmaId){
 function getAulasPrevistasEspaco(turmaId){
   const r={'G1':{s1:0,s2:0},'G2':{s1:0,s2:0},'E1+E2':{s1:0,s2:0}};
   const semanas=getSemanasLetivas();
+  const fimTurma=getFimAnoTurma(turmaId);
   semanas.forEach((semana,idx)=>{
     Object.entries(S.horario).forEach(([slot,data])=>{
       if(!data||data.turmaId!==turmaId) return;
       const dt=getDateForSlot(semana,slot);
-      if(!dt||isFeriadoOrPausa(dt)) return;
+      if(!dt||dt>fimTurma||isFeriadoOrPausa(dt)) return;
       const espacoRot=getEspacoRotacionado(data.espaco,idx);
       const grupo=espacoRot==='E1'||espacoRot==='E2'?'E1+E2':espacoRot;
       if(!r[grupo]) return;
@@ -4333,7 +4360,7 @@ function renderSumarios(){
     if(data&&data.turmaId==filterTurma){
       semanas.forEach(semana=>{
         const dt=getDateForSlot(semana,slot);
-        if(dt&&!isFeriadoOrPausa(dt)){
+        if(dt&&dt<=getFimAnoTurma(filterTurma)&&!isFeriadoOrPausa(dt)){
           const sem=getSemestre(dt);
           if(filterSemestre==='all'||sem==filterSemestre){
             aulasOrdenadas.push({dt,slot,data,sem,sumKey:`${dt}_${slot}`});
@@ -4406,10 +4433,11 @@ function renderSumarioRow(a,turma){
       </select>
     </div>
     <div style="margin-top:10px;font-size:11px;color:var(--gray);font-weight:600;margin-bottom:6px">FALTAS — ${turma.alunos.length} alunos (clique para registar):</div>
-    <div class="alunos-faltas">${turma.alunos.map(a2=>{
+    <div class="alunos-faltas">${turma.alunos.map((a2,ai)=>{
       const nome=typeof a2==='string'?a2:a2.nome;
+      const num=typeof a2==='object'&&a2.num?a2.num:ai+1;
       const tipo=faltas[nome]||'';
-      return `<button class="aluno-btn${tipo?' falta-'+tipo:''}" data-sumkey="${a.sumKey}" data-aluno="${esc(nome)}">${esc(nome.split(' ')[0])}${tipo?` (${FALTA_LABELS[tipo]})`:''}</button>`;
+      return `<button class="aluno-btn${tipo?' falta-'+tipo:''}" data-sumkey="${a.sumKey}" data-aluno="${esc(nome)}" data-num="${num}">${num} - ${esc(nome.split(' ')[0])}${tipo?` (${FALTA_LABELS[tipo]})`:''}</button>`;
     }).join('')}</div>
     ${Object.keys(resumo).length?`<div class="faltas-resumo">${Object.entries(resumo).map(([t,ns])=>`<strong>${FALTA_LABELS[t]}:</strong> ${ns.join(', ')}`).join(' | ')}</div>`:''}
   </div>`;
@@ -4858,7 +4886,7 @@ function renderPlanificacao(){
         const aula=S.horario[slot];
         if(!aula||aula.turmaId!=turma.id) return;
         const dt=getDateForSlot(semana,slot);
-        if(!dt||isFeriadoOrPausa(dt)) return;
+        if(!dt||dt>getFimAnoTurma(turma.id)||isFeriadoOrPausa(dt)) return;
         const sem=getSemestre(dt);
         if(semestre!=='all'&&sem!==parseInt(semestre)) return;
         const espacoRot=getEspacoRotacionado(aula.espaco, semanaIdx);
@@ -5416,8 +5444,17 @@ function renderModal(){
         <select id="editEspaco"><option value="">—</option>${ESPACOS.map(e=>`<option value="${e}"${espacoRot===e?' selected':''}>${e}</option>`).join('')}</select></div>
       <div class="modal-field"><label>Modalidade <small style="color:var(--gray);font-weight:400">(apenas para esta semana)</small></label>
         <select id="editModalidade"><option value="">—</option>${MODALIDADES.map(m=>`<option value="${m}"${modalidadeSemana===m?' selected':''}>${m}</option>`).join('')}</select></div>
-      <div class="modal-field"><label>Observações</label>
-        <textarea id="editObs" rows="3">${esc(aula.obs||'')}</textarea></div>
+      ${(()=>{
+        const sumKey=modal.sumKey||'';
+        const sumExist=sumKey?S.sumarios[sumKey]||{}:{};
+        const sumTexto=sumExist.sumario||'';
+        const turmaId=aula.turmaId;
+        const semAtual=modal.date?('sem'+getSemestre(modal.date)):'';
+        const modalidadeSum=sumExist.modalidade||modalidadeSemana||'';
+        return `<div class="modal-field"><label>Sumário${sumKey?'':' <small style="color:var(--gray);font-weight:400">(sem data associada)</small>'}</label>
+          <textarea id="editSumario" rows="4" placeholder="Escreve o sumário da aula..." ${!sumKey?'disabled title="Aula sem data — navegue para uma semana específica"':''} style="resize:vertical">${esc(sumTexto)}</textarea>
+          ${sumTexto?`<div style="font-size:11px;color:var(--green);margin-top:3px">✓ Sumário já registado</div>`:''}</div>`;
+      })()}
       <div class="modal-actions">
         <button class="btn btn-danger" id="clearAulaBtn">Remover aula</button>
         <button class="btn" id="cancelModal">Cancelar</button>
@@ -5781,7 +5818,7 @@ function attachEvents(){
   const fTS=document.getElementById('filterTurmaS');
   if(fTS) fTS.addEventListener('change',e=>{filterTurma=e.target.value;render();});
   document.querySelectorAll('.aula-cell[data-slot]').forEach(el=>{
-    el.addEventListener('click',()=>{modal={type:'editAula',slot:el.dataset.slot,weekKey:el.dataset.weekkey||''};render();});
+    el.addEventListener('click',()=>{modal={type:'editAula',slot:el.dataset.slot,weekKey:el.dataset.weekkey||'',sumKey:el.dataset.sumkey||'',date:el.dataset.date||''};render();});
   });
 
   // Sumários
@@ -5835,13 +5872,26 @@ function attachEvents(){
   });
   document.querySelectorAll('.aluno-btn').forEach(el=>{
     el.addEventListener('click',()=>{
-      const key=el.dataset.sumkey;const aluno=el.dataset.aluno;
+      const key=el.dataset.sumkey; const aluno=el.dataset.aluno; const num=el.dataset.num||'';
       if(!S.faltas[key]) S.faltas[key]={};
       const curr=S.faltas[key][aluno]||'';
       const idx=FALTA_TIPOS.indexOf(curr);
-      S.faltas[key][aluno]=idx<FALTA_TIPOS.length-1?FALTA_TIPOS[idx+1]:'';
+      const novoTipo=idx<FALTA_TIPOS.length-1?FALTA_TIPOS[idx+1]:'';
+      S.faltas[key][aluno]=novoTipo;
       S.lastSumarioTurma=parseInt(filterTurma)||S.lastSumarioTurma;
-      save();render();
+      // Atualizar só este botão no DOM (sem re-render para não perder a posição de scroll)
+      el.className='aluno-btn'+(novoTipo?' falta-'+novoTipo:'');
+      el.textContent=`${num} - ${aluno.split(' ')[0]}`+(novoTipo?` (${FALTA_LABELS[novoTipo]})`:'');
+      // Atualizar o resumo de faltas do bloco sem re-render
+      const bloco=el.closest('.sumario-bloco, [data-sumkey]')?.parentElement;
+      const resumoEl=el.closest('.alunos-faltas')?.nextElementSibling;
+      if(resumoEl&&resumoEl.classList.contains('faltas-resumo')){
+        const todasFaltas=S.faltas[key]||{};
+        const resumo={};
+        Object.entries(todasFaltas).forEach(([n,t])=>{ if(t){ if(!resumo[t]) resumo[t]=[]; resumo[t].push(n.split(' ')[0]); } });
+        resumoEl.innerHTML=Object.entries(resumo).map(([t,ns])=>`<strong>${FALTA_LABELS[t]}:</strong> ${ns.join(', ')}`).join(' | ');
+      }
+      save();
     });
   });
 
@@ -7097,15 +7147,26 @@ function attachEvents(){
     const tid=document.getElementById('editTurma').value;
     const esp=document.getElementById('editEspaco').value;
     const mod=document.getElementById('editModalidade').value;
-    const obs=document.getElementById('editObs').value;
+    const sumTexto=document.getElementById('editSumario')?.value||'';
     if(tid){
       // Turma e espaço ficam no horário base
-      S.horario[modal.slot]={turmaId:parseInt(tid),espaco:esp,obs};
+      S.horario[modal.slot]={turmaId:parseInt(tid),espaco:esp};
       // Modalidade fica associada à semana específica
       if(modal.weekKey){
         if(!S.modalidadesSemana[modal.weekKey]) S.modalidadesSemana[modal.weekKey]={};
         if(mod) S.modalidadesSemana[modal.weekKey][modal.slot]=mod;
         else delete S.modalidadesSemana[modal.weekKey][modal.slot];
+      }
+      // Sumário — guardar em S.sumarios com a mesma chave usada no separador Sumários
+      if(modal.sumKey){
+        if(!S.sumarios[modal.sumKey]) S.sumarios[modal.sumKey]={};
+        S.sumarios[modal.sumKey]={
+          ...S.sumarios[modal.sumKey],
+          turmaId:parseInt(tid),
+          sumario:sumTexto,
+          semestre:'sem'+getSemestre(modal.date||''),
+          modalidade:mod||S.sumarios[modal.sumKey]?.modalidade||''
+        };
       }
     } else {
       delete S.horario[modal.slot];
