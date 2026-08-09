@@ -2949,7 +2949,9 @@ function getAllModalidadesCountsBySem(){
   const c={};
   Object.values(S.sumarios).forEach(s=>{
     if(!s.sumario||!s.modalidadeSumario) return;
-    const sem=parseInt(s.semestre)||1;
+    // semestre pode ser 'sem1'/'sem2' (string) ou 1/2 (número)
+    const semStr=String(s.semestre||'1');
+    const sem=semStr==='sem2'||semStr==='2'?2:1;
     const mod=s.modalidadeSumario;
     if(!c[mod]) c[mod]={s1:0,s2:0};
     if(sem===1) c[mod].s1++; else c[mod].s2++;
@@ -4125,12 +4127,18 @@ function exportAvaliacaoExcel(turma, semestre){
 // Calcula % de aulas realizadas (sem FP) por aluno, num semestre específico (1 ou 2)
 function calcPercAulasRealizadas(turmaId, nomeAluno, semestre){
   let totalAulas=0, aulasPresente=0;
+  const semNorm=String(semestre)==='2'||String(semestre)==='sem2'?2:1;
+  const fimTurma=getFimAnoTurma(turmaId);
   Object.entries(S.sumarios).forEach(([sumKey, sum])=>{
     if(sum.turmaId!=turmaId || !sum.sumario) return;
-    if(String(sum.semestre)!==String(semestre)) return;
+    const sumSem=String(sum.semestre||'1');
+    const sumSemNorm=sumSem==='sem2'||sumSem==='2'?2:1;
+    if(sumSemNorm!==semNorm) return;
+    // Respeitar fim do ano letivo da turma
+    const dt=sumKey.split('_')[0];
+    if(dt&&dt>fimTurma) return;
     totalAulas++;
     const falta=S.faltas[sumKey]?.[nomeAluno];
-    // Aluno presente = sem qualquer tipo de falta (fp, fa, fm, fd)
     if(!falta) aulasPresente++;
   });
   if(totalAulas===0) return '';
@@ -4139,7 +4147,12 @@ function calcPercAulasRealizadas(turmaId, nomeAluno, semestre){
 
 function getAulasDadas(turmaId){
   const r={s1:0,s2:0};
-  Object.values(S.sumarios).forEach(v=>{if(v.turmaId===turmaId&&v.sumario){if(v.semestre==='1')r.s1++;else r.s2++;}});
+  Object.values(S.sumarios).forEach(v=>{
+    if(v.turmaId===turmaId&&v.sumario){
+      const sem=String(v.semestre||'1');
+      if(sem==='sem2'||sem==='2') r.s2++; else r.s1++;
+    }
+  });
   return r;
 }
 
@@ -4148,6 +4161,7 @@ function getAulasDadas(turmaId){
 function getAulasDadasPlanificacao(turmaId){
   const espacos=['E1 + E2','G1','G2'];
   const semanas=getSemanasLetivas();
+  const fimTurma=getFimAnoTurma(turmaId);
   let s1=0, s2=0;
   const contados=new Set();
   Object.entries(S.sumarios).forEach(([sumKey,s])=>{
@@ -4156,6 +4170,7 @@ function getAulasDadasPlanificacao(turmaId){
     const parts=sumKey.split('_');
     if(parts.length<3) return;
     const dt=parts[0];
+    if(dt>fimTurma) return; // respeitar fim do ano da turma
     const slot=parts[1]+'_'+parts[2];
     const aulaBase=S.horario[slot];
     if(!aulaBase||aulaBase.turmaId!=turmaId) return;
@@ -4165,7 +4180,8 @@ function getAulasDadasPlanificacao(turmaId){
     const grupoRot=(espacoRot==='E1'||espacoRot==='E2')?'E1 + E2':espacoRot;
     if(!espacos.includes(grupoRot)) return;
     contados.add(sumKey);
-    const sem=parseInt(s.semestre)||1;
+    const semStr=String(s.semestre||'1');
+    const sem=semStr==='sem2'||semStr==='2'?2:1;
     if(sem===1) s1++; else s2++;
   });
   return {s1, s2};
@@ -4177,8 +4193,10 @@ function getFimAnoTurma(turmaId){
   const ano=turma?.ano||'';
   const cal=S.calendario||{};
   const fimAnos=cal.fimAnos||{};
-  // Prioridade: fimAnos[ano] > fim1s (último dia do calendário geral)
-  return fimAnos[ano]||cal.fim1s||'9999-12-31';
+  if(fimAnos[ano]) return fimAnos[ano];
+  // Fallback: maior data de fimAnos disponível; ou data muito distante
+  const allFim=Object.values(fimAnos).filter(Boolean).sort();
+  return allFim.length?allFim[allFim.length-1]:'9999-12-31';
 }
 
 function getAulasPrevistas(turmaId){
@@ -4313,6 +4331,10 @@ function renderSemanal(){
           if(dt&&isFeriadoOrPausa(dt)){
             const isPausa=S.pausas?.includes(dt)||(S.pausasIntervalos||[]).some(p=>dt>=p.inicio&&dt<=p.fim);
             return `<td><div class="aula-feriado" style="${isPausa?'background:#fef3c7 !important;color:#92400e':''}">${isPausa?'⏸️ Pausa Letiva':'🌴 Feriado'}</div></td>`;
+          }
+          // Não mostrar aula após o fim do ano da turma
+          if(dt&&dt>getFimAnoTurma(aula.turmaId)){
+            return `<td><div class="aula-cell empty" style="background:#f1f5f9;opacity:0.4" title="Após fim do ano letivo desta turma"></div></td>`;
           }
           const sumKey=dt?`${dt}_${slot}`:'';
           const temSum=S.sumarios[sumKey]?.sumario;
@@ -4857,7 +4879,11 @@ function renderPlanificacao(){
     Object.entries(S.sumarios).forEach(([sumKey,s])=>{
       if(!s.modalidadeSumario||s.modalidadeSumario!==modalidade) return;
       if(!s.sumario||s.turmaId!=turma.id) return;
-      if(semestre!=='all'&&s.semestre!=semestre) return;
+      if(semestre!=='all'){
+        const sumSem=String(s.semestre||'1');
+        const sumSemNorm=sumSem==='sem2'||sumSem==='2'?2:1;
+        if(sumSemNorm!==parseInt(semestre)) return;
+      }
       const parts=sumKey.split('_');
       if(parts.length<3) return;
       const dt=parts[0];
