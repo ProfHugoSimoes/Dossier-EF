@@ -4332,9 +4332,9 @@ function renderSemanal(){
             const isPausa=S.pausas?.includes(dt)||(S.pausasIntervalos||[]).some(p=>dt>=p.inicio&&dt<=p.fim);
             return `<td><div class="aula-feriado" style="${isPausa?'background:#fef3c7 !important;color:#92400e':''}">${isPausa?'⏸️ Pausa Letiva':'🌴 Feriado'}</div></td>`;
           }
-          // Não mostrar aula após o fim do ano da turma
+          // Não mostrar aula após o fim do ano da turma — célula em branco
           if(dt&&dt>getFimAnoTurma(aula.turmaId)){
-            return `<td><div class="aula-cell empty" style="background:#f1f5f9;opacity:0.4" title="Após fim do ano letivo desta turma"></div></td>`;
+            return `<td><div class="aula-cell empty"></div></td>`;
           }
           const sumKey=dt?`${dt}_${slot}`:'';
           const temSum=S.sumarios[sumKey]?.sumario;
