@@ -3258,6 +3258,7 @@ function renderPainel(){
                 </div>
                 <span style="font-size:12px;font-weight:700;color:${count>0?color:'#cbd5e1'};min-width:16px;text-align:right">${count||'—'}</span>
               </div>
+              ${count>0?`<div style="font-size:10px;color:${color};opacity:0.75;margin-top:2px;text-align:right">${pct}%</div>`:''}
             </div>`;
           return `
             <div style="background:${bg};padding:8px 12px;border-bottom:1px solid var(--border);font-size:12px;font-weight:600;color:var(--navy);display:flex;align-items:center">${esc(mod)}</div>
@@ -4258,9 +4259,13 @@ function getModalidadesCounts(turmaId){
 function getModalidadesCountsBySem(turmaId){
   // Devolve { mod: { s1: N, s2: N } } — fonte: campo modalidadeSumario do separador Sumários
   const c={};
-  Object.values(S.sumarios).forEach(s=>{
+  const fimTurma=getFimAnoTurma(turmaId);
+  Object.entries(S.sumarios).forEach(([sumKey,s])=>{
     if(!s.sumario||!s.modalidadeSumario||s.turmaId!=turmaId) return;
-    const sem=parseInt(s.semestre)||1;
+    const dt=sumKey.split('_')[0];
+    if(dt&&dt>fimTurma) return;
+    const semStr=String(s.semestre||'1');
+    const sem=semStr==='sem2'||semStr==='2'?2:1;
     const mod=s.modalidadeSumario;
     if(!c[mod]) c[mod]={s1:0,s2:0};
     if(sem===1) c[mod].s1++; else c[mod].s2++;
