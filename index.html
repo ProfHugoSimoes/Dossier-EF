@@ -4539,29 +4539,6 @@ function renderCalendario(){
           ${!(S.pausasIntervalos&&S.pausasIntervalos.length)?'<div style="color:var(--gray);font-size:12px">Nenhuma pausa adicionada.</div>':''}
         </div>
       </div>
-          <div style="font-size:14px;font-weight:700;color:var(--navy);margin-bottom:12px">⏸️ Pausas Letivas</div>
-          <p style="font-size:11px;color:var(--gray);margin-bottom:10px">Defina um intervalo de datas (início e fim inclusive). Todos os dias desse intervalo serão tratados como não letivos.</p>
-          <div style="display:flex;gap:8px;align-items:center;margin-bottom:12px;flex-wrap:wrap">
-            <div style="display:flex;align-items:center;gap:6px;flex:1;min-width:160px">
-              <span style="font-size:11px;font-weight:600;color:var(--gray);white-space:nowrap">De</span>
-              <input type="date" class="cal-input" id="pausaInicio" style="flex:1">
-            </div>
-            <div style="display:flex;align-items:center;gap:6px;flex:1;min-width:160px">
-              <span style="font-size:11px;font-weight:600;color:var(--gray);white-space:nowrap">Até</span>
-              <input type="date" class="cal-input" id="pausaFim" style="flex:1">
-            </div>
-            <button class="btn btn-primary" id="addPausaBtn">+ Adicionar</button>
-          </div>
-          <div class="feriados-list">
-            ${(S.pausasIntervalos||[]).map((p,i)=>`
-              <span class="feriado-tag" style="background:var(--amber2);color:var(--amber)">
-                ${fmtDate(p.inicio)} → ${fmtDate(p.fim)}
-                <button data-pausa="${i}" title="Remover" style="color:var(--amber)">×</button>
-              </span>`).join('')}
-          </div>
-          ${!(S.pausasIntervalos&&S.pausasIntervalos.length)?'<div style="color:var(--gray);font-size:12px">Nenhuma pausa adicionada.</div>':''}
-        </div>
-      </div>
       <div class="card cal-horario-card">
         <div style="font-size:14px;font-weight:700;color:var(--navy);margin-bottom:12px">🗓️ Horário Semanal Base</div>
         <p style="font-size:11px;color:var(--gray);margin-bottom:12px">Defina a turma e espaço para cada bloco. Este horário gera automaticamente as aulas previstas.</p>
