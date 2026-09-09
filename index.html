@@ -8504,8 +8504,12 @@ function rotRotate(row, lockRow, map1Row) {
   const result = ['','','',''];
   lockRow.forEach((isLocked, ci) => { if(isLocked) result[ci] = map1Row[ci]; });
   const freeSlots = [0,1,2,3].filter(ci => !lockRow[ci]);
-  const rotatedFreeValues = freeSlots.map(ci => lockRow[(ci+3)%4] ? '' : row[(ci+3)%4]);
-  freeSlots.forEach((ci, i) => { result[ci] = rotatedFreeValues[i]; });
+  const n = freeSlots.length;
+  // Rotação cíclica apenas entre as posições livres — as trancadas são tratadas como inexistentes
+  freeSlots.forEach((ci, i) => {
+    const srcIdx = freeSlots[(i - 1 + n) % n];
+    result[ci] = row[srcIdx];
+  });
   return result;
 }
 function rotGetMapData(mapIdx) {
