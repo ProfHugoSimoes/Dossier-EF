@@ -617,12 +617,17 @@ async function initApp(){
   if(!s.reunioes) s.reunioes=[];
   if(!s.avisosLidos) s.avisosLidos={};
   if(!s.avisosEliminados) s.avisosEliminados={};
+  if(!s.rotacao) s.rotacao={};
   if(!s.config) s.config={modoPeriodos:'semestres',feriadoMunicipalData:'',feriadoMunicipalNome:'',incluirFeriadoMunicipal:false};
   if(s.config&&!s.config.modoPeriodos) s.config.modoPeriodos='semestres';
   // Preencher datas de períodos no calendário se não existirem
   if(s.calendario&&!s.calendario.fim1p){ const [,ano2]=(s.anoLetivo||'2025/2026').split('/').map(Number); s.calendario.fim1p=`${ano2-1}-12-18`; s.calendario.fim2p=`${ano2}-03-28`; }
 
   S = s;
+  rotMigrateFromLocalStorage();
+  rotSemestreAtivo='sem1';
+  rotLoadMap();
+  rotLoadProfs();
   saveGlobal({ escola:S.escola||'', professor:S.professor||'', logo:S.logo||'', anoLetivo:S.anoLetivo||anoAtivo });
   currentTab = isMobile() ? 'home' : 'painel';
   currentWeekOffset = calcCurrentWeekOffset();
@@ -915,7 +920,8 @@ function createFreshState(anoLetivo, escola, logo, professor){
     lastSumarioTurma:null,
     reunioes:[],
     avisosLidos: {},
-    avisosEliminados: {}
+    avisosEliminados: {},
+    rotacao: {}
   };
 }
 
@@ -5979,12 +5985,14 @@ function attachEvents(){
     if(!novo.logo) novo.logo=logo;
     if(!novo.professor) novo.professor=professor;
     S=novo;
+    if(!S.rotacao) S.rotacao={};
     currentTab='painel';
     filterTurma='all';
     filterPlanTurma=null;
     currentWeekOffset=calcCurrentWeekOffset();
     // Recarregar dados de Rotação para o novo ano letivo
     rotResetState();
+    rotSemestreAtivo='sem1';
     rotLoadMap();
     rotLoadProfs();
     // Selecionar o mapa da semana atual no novo ano
@@ -8416,6 +8424,7 @@ let rotModalIdx   = -1;
 let rotModalColor = ROT_PRESETS[0];
 let rotCurrentMap = 0;
 let rotCurrentView = 'map'; // 'map' | 'servico'
+let rotSemestreAtivo = 'sem1'; // 'sem1' | 'sem2'
 
 let rotSLOTS = [
   ['08:20','09:10'],['09:20','10:10'],['10:30','11:20'],['11:30','12:20'],['12:30','13:20'],
@@ -8449,7 +8458,7 @@ let rotLocked = Array.from({length: ROT_DAYS.length}, () =>
   });
 })();
 
-// ── Persistência localStorage ──────────────────────────────────
+// ── Persistência sincronizada (S.rotacao) ──────────────────────
 function rotLsKey(ano) {
   const a = ano || (S && S.anoLetivo ? S.anoLetivo : '');
   return 'rotacao_map_' + a.replace('/', '_');
@@ -8475,26 +8484,84 @@ function rotResetState() {
   );
 }
 function rotSaveMap() {
-  try { localStorage.setItem(rotLsKey(), JSON.stringify({ map1: rotMap1, locked: rotLocked, SLOTS: rotSLOTS })); } catch(e) {}
+  if(!S.rotacao) S.rotacao={};
+  if(!S.rotacao[rotSemestreAtivo]) S.rotacao[rotSemestreAtivo]={};
+  S.rotacao[rotSemestreAtivo].map1 = rotMap1;
+  S.rotacao[rotSemestreAtivo].locked = rotLocked;
+  S.rotacao[rotSemestreAtivo].slots = rotSLOTS;
+  save();
 }
 function rotSaveProfs() {
-  try { localStorage.setItem(rotLsProfKey(), JSON.stringify(rotProfessors)); } catch(e) {}
+  if(!S.rotacao) S.rotacao={};
+  if(!S.rotacao[rotSemestreAtivo]) S.rotacao[rotSemestreAtivo]={};
+  S.rotacao[rotSemestreAtivo].professores = rotProfessors;
+  save();
 }
 function rotLoadMap() {
-  try {
-    const raw = localStorage.getItem(rotLsKey());
-    if (!raw) return;
-    const s = JSON.parse(raw);
-    if (s.map1)   rotMap1   = s.map1;
-    if (s.locked) rotLocked = s.locked;
-    if (s.SLOTS)  rotSLOTS  = s.SLOTS;
-  } catch(e) {}
+  const obj = S && S.rotacao ? S.rotacao[rotSemestreAtivo] : null;
+  if (obj && obj.map1) {
+    rotMap1   = obj.map1;
+    rotLocked = obj.locked || rotLocked;
+    rotSLOTS  = obj.slots  || rotSLOTS;
+  }
 }
 function rotLoadProfs() {
+  const obj = S && S.rotacao ? S.rotacao[rotSemestreAtivo] : null;
+  if (obj && obj.professores) rotProfessors = obj.professores;
+}
+// Migra dados antigos guardados em localStorage (versões anteriores) para S.rotacao, uma única vez
+function rotMigrateFromLocalStorage() {
+  if (S.rotacao && S.rotacao.sem1 && S.rotacao.sem1.map1) return; // já migrado
   try {
-    const raw = localStorage.getItem(rotLsProfKey());
-    if (raw) rotProfessors = JSON.parse(raw);
+    const raw = localStorage.getItem(rotLsKey());
+    const rawProf = localStorage.getItem(rotLsProfKey());
+    const obj = {};
+    let migrated = false;
+    if (raw) {
+      const s = JSON.parse(raw);
+      if (s.map1) { obj.map1 = s.map1; obj.locked = s.locked; obj.slots = s.SLOTS; migrated = true; }
+    }
+    if (rawProf) {
+      const p = JSON.parse(rawProf);
+      if (p && p.length) { obj.professores = p; migrated = true; }
+    }
+    if (migrated) {
+      if (!S.rotacao) S.rotacao = {};
+      S.rotacao.sem1 = obj;
+      S.rotacao.sem2 = JSON.parse(JSON.stringify(obj)); // cópia independente — ajustável manualmente depois
+      save();
+    }
   } catch(e) {}
+}
+// Devolve {inicio, fim} (datas 'YYYY-MM-DD') do semestre pedido, a partir do Calendário Letivo
+function rotGetSemestreRange(sem) {
+  const cal = S.calendario || {};
+  if (sem === 'sem1') return { inicio: cal.inicio || '', fim: cal.fim1s || '' };
+  const allFim = Object.values(cal.fimAnos || {}).filter(Boolean).sort();
+  const fim = allFim.length ? allFim[allFim.length - 1] : '';
+  let inicio = cal.fim1s || '';
+  if (inicio) {
+    const d = new Date(inicio + 'T00:00:00');
+    d.setDate(d.getDate() + 1);
+    inicio = d.toISOString().slice(0, 10);
+  }
+  return { inicio, fim };
+}
+// Troca o semestre ativo, guardando o estado atual e carregando (ou herdando) o do novo semestre
+function rotSwitchSemestre(sem) {
+  if (sem === rotSemestreAtivo) return;
+  rotSaveMap();
+  rotSaveProfs();
+  rotSemestreAtivo = sem;
+  if (!S.rotacao[sem] || !S.rotacao[sem].map1) {
+    // Ainda não existe — herda uma cópia do 1º semestre como ponto de partida
+    const base = S.rotacao.sem1 || {};
+    S.rotacao[sem] = JSON.parse(JSON.stringify(base));
+    save();
+  }
+  rotLoadMap();
+  rotLoadProfs();
+  render();
 }
 rotLoadMap();
 rotLoadProfs();
@@ -8613,6 +8680,15 @@ function renderRotacao() {
           <button class="btn btn-primary btn-sm" id="rotExportPdfBtn" style="display:flex;align-items:center;gap:6px">⬇ Exportar PDF</button>
         </div>
       </div>
+      ${(()=>{
+        const r1=rotGetSemestreRange('sem1'), r2=rotGetSemestreRange('sem2');
+        const lbl=(r)=> (r.inicio&&r.fim) ? `${fmtDate(r.inicio)} – ${fmtDate(r.fim)}` : '';
+        const semBtn=(sem,label,range)=>`<button data-rotsemestre="${sem}" style="display:flex;flex-direction:column;align-items:center;gap:1px;padding:6px 16px;border-radius:8px;font-size:12px;font-weight:700;cursor:pointer;border:2px solid ${rotSemestreAtivo===sem?'var(--blue)':'var(--border)'};background:${rotSemestreAtivo===sem?'var(--blue)':'#fff'};color:${rotSemestreAtivo===sem?'#fff':'var(--navy)'};transition:all 0.15s">
+          <span>${label}</span>
+          ${range?`<span style="font-size:9.5px;font-weight:500;opacity:0.8">${range}</span>`:''}
+        </button>`;
+        return `<div style="display:flex;gap:8px;margin-bottom:8px">${semBtn('sem1','1º Semestre',lbl(r1))}${semBtn('sem2','2º Semestre',lbl(r2))}</div>`;
+      })()}
       <div style="font-size:12px;color:var(--gray);margin-bottom:8px;padding-left:2px">Preenche o Mapa 1 · Os Mapas 2, 3 e 4 rodam automaticamente (G1 → E1 → G2 → E2 → G1)</div>
       <div style="display:flex;align-items:stretch;gap:8px;flex-wrap:wrap;padding-bottom:10px;border-bottom:1px solid var(--border);overflow:visible">${btnHtml}${mob ? '' : semanaTag}</div>
     </div>
@@ -9064,6 +9140,10 @@ function rotImportJson(file) {
 }
 
 function attachRotacaoEvents() {
+  // Semestre
+  document.querySelectorAll('[data-rotsemestre]').forEach(btn => {
+    btn.addEventListener('click', () => rotSwitchSemestre(btn.dataset.rotsemestre));
+  });
   // Tabs
   document.querySelectorAll('[data-rotmap]').forEach(btn => {
     btn.addEventListener('click', () => {
