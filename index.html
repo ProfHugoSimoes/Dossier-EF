@@ -515,6 +515,7 @@ function save(){
     try{
       await saveStateToDB(S);
       setSyncStatus('saved');
+      saveLocalSnapshot(S);
     } catch(e){
       setSyncStatus('error');
       console.warn('[Save] Erro:', e.message);
@@ -4275,14 +4276,33 @@ function getAulasPrevistas(turmaId){
   const semanas=getSemanasLetivas();
   const fimTurma=getFimAnoTurma(turmaId);
   const inicioTurma=getInicioAnoTurma(turmaId);
-  Object.entries(S.horario).forEach(([slot,data])=>{
-    if(data&&data.turmaId===turmaId){
-      semanas.forEach(semana=>{
+  const rotSlots=rotGetSlotsTurma(turmaId);
+  if(rotSlots.length>0){
+    // Nova lógica: contar via Mapa 1
+    rotSlots.forEach(({di,si})=>{
+      const bi=rotSiToBi(si);
+      if(bi<0) return;
+      const slot=`${di}_${bi}`;
+      semanas.forEach((semana,wi)=>{
+        if(!rotSemanaTemAulas(semana)) return;
         const dt=getDateForSlot(semana,slot);
-        if(dt&&dt<=fimTurma&&dt>=inicioTurma&&!isFeriadoOrPausa(dt)){const sem=getSemestre(dt);if(sem===1)s1++;else if(sem===2)s2++;}
+        if(dt&&dt<=fimTurma&&dt>=inicioTurma&&!isFeriadoOrPausa(dt)){
+          const sem=getSemestre(dt);
+          if(sem===1)s1++;else if(sem===2)s2++;
+        }
       });
-    }
-  });
+    });
+  } else {
+    // Fallback: S.horario
+    Object.entries(S.horario).forEach(([slot,data])=>{
+      if(data&&data.turmaId===turmaId){
+        semanas.forEach(semana=>{
+          const dt=getDateForSlot(semana,slot);
+          if(dt&&dt<=fimTurma&&dt>=inicioTurma&&!isFeriadoOrPausa(dt)){const sem=getSemestre(dt);if(sem===1)s1++;else if(sem===2)s2++;}
+        });
+      }
+    });
+  }
   return{s1,s2};
 }
 
@@ -4294,18 +4314,37 @@ function getAulasPrevistasEspaco(turmaId){
   const semanas=getSemanasLetivas();
   const fimTurma=getFimAnoTurma(turmaId);
   const inicioTurma=getInicioAnoTurma(turmaId);
-  semanas.forEach((semana,idx)=>{
-    Object.entries(S.horario).forEach(([slot,data])=>{
-      if(!data||data.turmaId!==turmaId) return;
-      const dt=getDateForSlot(semana,slot);
-      if(!dt||dt>fimTurma||dt<inicioTurma||isFeriadoOrPausa(dt)) return;
-      const espacoRot=getEspacoRotacionado(data.espaco,idx);
-      const grupo=espacoRot==='E1'||espacoRot==='E2'?'E1+E2':espacoRot;
-      if(!r[grupo]) return;
-      const sem=getSemestre(dt);
-      if(sem===1) r[grupo].s1++; else if(sem===2) r[grupo].s2++;
+  const rotSlots=rotGetSlotsTurma(turmaId);
+  if(rotSlots.length>0){
+    rotSlots.forEach(({di,si,ci})=>{
+      const bi=rotSiToBi(si);
+      if(bi<0) return;
+      const slot=`${di}_${bi}`;
+      semanas.forEach((semana,wi)=>{
+        if(!rotSemanaTemAulas(semana)) return;
+        const dt=getDateForSlot(semana,slot);
+        if(!dt||dt>fimTurma||dt<inicioTurma||isFeriadoOrPausa(dt)) return;
+        const espacoRot=rotGetEspacoParaSemana(ci,wi);
+        const grupo=espacoRot==='E1'||espacoRot==='E2'?'E1+E2':espacoRot;
+        if(!r[grupo]) return;
+        const sem=getSemestre(dt);
+        if(sem===1)r[grupo].s1++;else if(sem===2)r[grupo].s2++;
+      });
     });
-  });
+  } else {
+    semanas.forEach((semana,idx)=>{
+      Object.entries(S.horario).forEach(([slot,data])=>{
+        if(!data||data.turmaId!==turmaId) return;
+        const dt=getDateForSlot(semana,slot);
+        if(!dt||dt>fimTurma||dt<inicioTurma||isFeriadoOrPausa(dt)) return;
+        const espacoRot=getEspacoRotacionado(data.espaco,idx);
+        const grupo=espacoRot==='E1'||espacoRot==='E2'?'E1+E2':espacoRot;
+        if(!r[grupo]) return;
+        const sem=getSemestre(dt);
+        if(sem===1)r[grupo].s1++;else if(sem===2)r[grupo].s2++;
+      });
+    });
+  }
   return r;
 }
 
@@ -4401,32 +4440,57 @@ function renderSemanal(){
         <td class="time-col">${isMobile()?bloco.slice(0,5):bloco}</td>
         ${DIAS.map((d,di)=>{
           const slot=`${di}_${bi}`;
-          const aula=S.horario[slot];
-          if(!aula) return `<td><div class="aula-cell empty" data-slot="${slot}" title="Clique para adicionar aula"></div></td>`;
-          if(filterTurma!=='all'&&aula.turmaId!=filterTurma) return `<td><div class="aula-cell empty" style="opacity:0.3"></div></td>`;
-          const turma=S.turmas.find(t=>t.id==aula.turmaId);
           const dt=getDateForSlot(semana,slot);
+          // Feriado/pausa — mostrar mesmo sem aula
           if(dt&&isFeriadoOrPausa(dt)){
             const isPausa=S.pausas?.includes(dt)||(S.pausasIntervalos||[]).some(p=>dt>=p.inicio&&dt<=p.fim);
             return `<td><div class="aula-feriado" style="${isPausa?'background:#fef3c7 !important;color:#92400e':''}">${isPausa?'⏸️ Pausa Letiva':'🌴 Feriado'}</div></td>`;
           }
-          // Não mostrar aula fora do início/fim do ano da turma — célula em branco
-          if(dt&&(dt>getFimAnoTurma(aula.turmaId)||dt<getInicioAnoTurma(aula.turmaId))){
+          // Descobrir turma via Mapa1 para este slot
+          let turmaObj=null, espacoRot='', turmaIdSlot=null;
+          for(let ci=0;ci<ROT_COLS.length;ci++){
+            const val=(rotMap1[di]&&rotMap1[di][bi]&&rotMap1[di][bi][ci]||'').trim();
+            if(!val) continue;
+            // Procurar turma com este nome
+            const t=S.turmas.find(t2=>{
+              const tn=(t2.nome||'').trim();
+              return tn===val||tn.includes(val)||val.includes(tn);
+            });
+            if(!t) continue;
+            if(filterTurma!=='all'&&t.id!=filterTurma) continue;
+            turmaObj=t; turmaIdSlot=t.id;
+            espacoRot=rotGetEspacoParaSemana(ci,idx);
+            break;
+          }
+          // Fallback: verificar S.horario (compatibilidade)
+          if(!turmaObj){
+            const aula=S.horario[slot];
+            if(aula){
+              const t=S.turmas.find(t2=>t2.id==aula.turmaId);
+              if(t&&(filterTurma==='all'||aula.turmaId==filterTurma)){
+                turmaObj=t; turmaIdSlot=aula.turmaId;
+                espacoRot=getEspacoRotacionado(aula.espaco,idx);
+              }
+            }
+          }
+          if(!turmaObj){
+            if(filterTurma==='all') return `<td><div class="aula-cell empty" data-slot="${slot}" title="Sem aula"></div></td>`;
+            return `<td><div class="aula-cell empty" style="opacity:0.2"></div></td>`;
+          }
+          if(dt&&(dt>getFimAnoTurma(turmaIdSlot)||dt<getInicioAnoTurma(turmaIdSlot))){
             return `<td><div class="aula-cell empty"></div></td>`;
           }
           const sumKey=dt?`${dt}_${slot}`:'';
           const temSum=S.sumarios[sumKey]?.sumario;
-          const espacoRot=getEspacoRotacionado(aula.espaco,idx);
           const weekKey=semana[0];
           const modalidadeSemana=(S.modalidadesSemana[weekKey]||{})[slot]||'';
-          // Meteorologia: apenas na semana actual
           const wx = isCurrentWeek && dt && weatherCache[dt];
           const wxHtml = wx
             ? `<div style="position:absolute;top:3px;right:4px;text-align:center;line-height:1" title="${wx.desc} · ${wx.tempMin}°–${wx.tempMax}°C"><div style="font-size:20px">${wx.icon}</div><div style="font-size:9px;color:var(--gray);font-weight:600">${wx.tempMin}°–${wx.tempMax}°</div></div>`
             : '';
-          return `<td><div class="aula-cell has-aula" data-slot="${slot}" data-date="${dt||''}" data-sumkey="${sumKey}" data-weekkey="${weekKey}" style="position:relative">
+          return `<td><div class="aula-cell has-aula" data-slot="${slot}" data-date="${dt||''}" data-sumkey="${sumKey}" data-weekkey="${weekKey}" data-turma="${turmaIdSlot}" style="position:relative">
             ${wxHtml}
-            ${turma?`<div class="aula-turma">${turma.nome}</div>`:''}
+            <div class="aula-turma">${esc(turmaObj.nome)}</div>
             <div class="aula-espaco">${espacoRot||''}</div>
             <div class="aula-modal">${modalidadeSemana||'<span style="color:#ccc;font-style:italic">modalidade</span>'}</div>
             ${temSum?`<div style="font-size:9px;color:var(--green);margin-top:2px">✓ Sum.</div>`:''}
@@ -4618,28 +4682,29 @@ function renderCalendario(){
         </div>
       </div>
       <div class="card cal-horario-card">
-        <div style="font-size:14px;font-weight:700;color:var(--navy);margin-bottom:12px">🗓️ Horário Semanal Base</div>
-        <p style="font-size:11px;color:var(--gray);margin-bottom:12px">Defina a turma e espaço para cada bloco. Este horário gera automaticamente as aulas previstas.</p>
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;flex-wrap:wrap;gap:8px">
+          <div style="font-size:14px;font-weight:700;color:var(--navy)">🗓️ Horário Semanal Base</div>
+          <button class="btn btn-sm" id="syncHorarioBtn" style="background:#dbeafe;color:#1e40af;border-color:#93c5fd;font-size:11px">🔄 Importar do Mapa 1</button>
+        </div>
+        <p style="font-size:11px;color:var(--gray);margin-bottom:12px">Gerado a partir do Mapa 1 dos Mapas de Rotação. Clica em 'Importar do Mapa 1' para atualizar.</p>
         <div style="overflow-x:hidden">
         <table class="horario-table" style="${isMobile()?'table-layout:fixed;width:100%':''}">
           <thead><tr><th style="${isMobile()?'width:30px':''}">${isMobile()?'H':'Hora'}</th>${DIAS.map(d=>`<th>${isMobile()?d.slice(0,3):d}</th>`).join('')}</tr></thead>
-          <tbody>${BLOCOS.map((b,bi)=>`<tr>
+          <tbody>${BLOCOS.map((b,bi)=>{
+            const ROT_SI_MAP=[0,1,2,3,4,6,7,8,9,10];
+            const si=ROT_SI_MAP[bi];
+            return `<tr>
             <td style="font-size:${isMobile()?'7px':'10px'};white-space:${isMobile()?'normal':'nowrap'};background:var(--gray2);font-weight:600;color:var(--gray);padding:${isMobile()?'2px 1px':'4px 6px'};word-break:break-all;line-height:1.2">${isMobile()?b.slice(0,5):b}</td>
             ${DIAS.map((d,di)=>{
               const slot=`${di}_${bi}`;
               const aula=S.horario[slot]||{};
-              return `<td style="padding:3px">
-                <select class="horario-select" data-slot="${slot}" data-field="turmaId" style="display:block;width:100%;margin-bottom:2px">
-                  <option value="">—</option>
-                  ${S.turmas.map(t=>`<option value="${t.id}"${aula.turmaId==t.id?' selected':''}>${t.nome}</option>`).join('')}
-                </select>
-                <select class="horario-select" data-slot="${slot}" data-field="espaco" style="display:block;width:100%;color:var(--blue)">
-                  <option value="">—</option>
-                  ${ESPACOS.map(e=>`<option value="${e}"${aula.espaco===e?' selected':''}>${e}</option>`).join('')}
-                </select>
-              </td>`;
+              const turma=S.turmas.find(t=>t.id==aula.turmaId);
+              const label=turma?turma.nome:'';
+              const bg=label?'background:#eff6ff;':'';
+              return `<td style="padding:2px;${bg}text-align:center;font-size:${isMobile()?'7px':'11px'};color:var(--navy);font-weight:${label?'700':'400'};vertical-align:middle">${label||'<span style=\"color:var(--border)\">—</span>'}</td>`;
             }).join('')}
-          </tr>`).join('')}</tbody>
+          </tr>`;
+          }).join('')}</tbody>
         </table>
         </div>
       </div>
@@ -5916,10 +5981,78 @@ function fmtDate(dt){if(!dt)return '';const[y,m,d]=dt.split('-');return`${d}/${m
 // Calcula o espaço rotacionado para uma dada semana
 // A sequência é: G1 → E1 → G2 → E2 → G1 → ...
 // O espaço base (definido no horário) corresponde à semana 0 (1ª semana letiva)
+
+// ══════════════════════════════════════════════════════════════════
+// NOVA LÓGICA: Mapa 1 como fonte de verdade do horário
+// ══════════════════════════════════════════════════════════════════
+
+// Devolve o mapa (0-3) para uma semana, respeitando overrides manuais
+
+// Uma semana conta para a rotação se tiver pelo menos um dia letivo
+function rotSemanaTemAulas(sem) {
+  return sem.some(dt => !isFeriadoOrPausa(dt));
+}
+
+// Guarda override manual do mapa de uma semana
+function rotSetMapaOverride(weekIdx, mapaIdx) {
+  if (!S.rotacao) S.rotacao = {};
+  if (!S.rotacao.calOverrides) S.rotacao.calOverrides = {};
+  S.rotacao.calOverrides[weekIdx] = mapaIdx;
+  save();
+}
+
+// Remove todos os overrides (repor original)
+function rotClearOverrides() {
+  if (S.rotacao) S.rotacao.calOverrides = {};
+  save();
+  render();
+}
+
+// Devolve todos os slots {di, si, ci, espaco} onde a turmaId aparece no Mapa 1
+// di=dia(0-4), si=slotIdx, ci=colIdx(0-3 = G1/E1/G2/E2)
+function rotGetSlotsTurma(turmaId) {
+  const turma = S.turmas.find(t => t.id == turmaId);
+  if (!turma) return [];
+  const nome = (turma.nome || '').trim();
+  const slots = [];
+  for (let di = 0; di < ROT_DAYS.length; di++) {
+    for (let si = 0; si < rotSLOTS.length; si++) {
+      if (!rotSLOTS[si]) continue;
+      for (let ci = 0; ci < ROT_COLS.length; ci++) {
+        const val = (rotMap1[di] && rotMap1[di][si] && rotMap1[di][si][ci] || '').trim();
+        if (!val) continue;
+        // Correspondência: igual, contém, ou partial
+        if (val === nome || nome.includes(val) || val.includes(nome)) {
+          const espaco = ROT_COLS[ci]; // G1/E1/G2/E2
+          slots.push({ di, si, ci, espaco });
+        }
+      }
+    }
+  }
+  return slots;
+}
+
+// Dado um slot {di,si,ci} e um weekIdx, devolve o espaço rotacionado
+// A rotação é: mapa 0→ci original, mapa 1→ci+1, mapa 2→ci+2, mapa 3→ci+3
+function rotGetEspacoParaSemana(ci, weekIdx) {
+  const mapaIdx = rotGetMapaParaSemana(weekIdx);
+  return ROT_COLS[(ci + mapaIdx) % ROT_COLS.length];
+}
+
+// Mapeamento BLOCOS[bi] -> rotSLOTS[si]
+const ROT_BI_TO_SI = [0,1,2,3,4,6,7,8,9,10];
+
+// Dado um slot {di,si} do Mapa1, devolve o BLOCOS index (bi) correspondente, ou -1
+function rotSiToBi(si) {
+  return ROT_BI_TO_SI.indexOf(si); // bi = índice em BLOCOS
+}
+
 function getEspacoRotacionado(espacoBase, weekIndex){
+  // Mantida para compatibilidade com sumários baseados em S.horario
   if(!espacoBase||!ESPACOS.includes(espacoBase)) return espacoBase;
-  const baseIdx=ESPACOS.indexOf(espacoBase);
-  return ESPACOS[(baseIdx+weekIndex)%ESPACOS.length];
+  const mapaIdx = rotGetMapaParaSemana(weekIndex);
+  const baseIdx = ESPACOS.indexOf(espacoBase);
+  return ESPACOS[(baseIdx + mapaIdx) % ESPACOS.length];
 }
 
 function getSemanasLetivas(){
@@ -5970,6 +6103,91 @@ function getSemestre(dt){
 }
 
 // === EVENTS ===
+
+function syncHorarioFromMapa1() {
+  const ROT_SI_MAP = [0,1,2,3,4,6,7,8,9,10];
+  const ESPACOS_ROT = ['G1','E1','G2','E2'];
+  let count = 0;
+  S.horario = {};
+  for(let di = 0; di < ROT_DAYS.length; di++) {
+    for(let bi = 0; bi < ROT_SI_MAP.length; bi++) {
+      const si = ROT_SI_MAP[bi];
+      const row = (rotMap1[di] && rotMap1[di][si]) ? rotMap1[di][si] : [];
+      for(let ci = 0; ci < row.length; ci++) {
+        const val = (row[ci]||'').trim();
+        if(!val) continue;
+        const turma = S.turmas.find(t => {
+          const tn = (t.nome||'').trim();
+          return tn === val || tn.includes(val) || val.includes(tn);
+        });
+        if(turma) {
+          const slot = `${di}_${bi}`;
+          if(!S.horario[slot]) {
+            S.horario[slot] = { turmaId: turma.id, espaco: ESPACOS_ROT[ci] };
+            count++;
+          }
+        }
+      }
+    }
+  }
+  save();
+  render();
+  const msg = count > 0
+    ? `✅ Horário importado! ${count} aulas preenchidas a partir do Mapa 1.`
+    : '⚠️ Nenhuma turma correspondente encontrada no Mapa 1.';
+  setTimeout(() => alert(msg), 100);
+}
+
+function calcStateWeight(s){
+  if(!s) return 0;
+  let w=0;
+  if(s.turmas) w+=s.turmas.length*10 + s.turmas.reduce((a,t)=>a+(t.alunos?t.alunos.length:0),0);
+  if(s.sumarios) w+=Object.keys(s.sumarios).length;
+  if(s.avaliacao) w+=Object.keys(s.avaliacao).length*5;
+  if(s.faltas) w+=Object.keys(s.faltas).length;
+  if(s.planificacao) w+=Object.keys(s.planificacao).length;
+  return w;
+}
+
+// ── Lembrete de exportação ────────────────────────────────────
+const EXPORT_REMINDER_DAYS=7;
+function markExported(){
+  try{ localStorage.setItem('dossier_lastExport', new Date().toISOString()); }catch{}
+}
+function checkExportReminder(){
+  try{
+    const last=localStorage.getItem('dossier_lastExport');
+    if(!last){ markExported(); return; } // primeira vez — inicializa sem avisar
+    const dias=Math.floor((Date.now()-new Date(last).getTime())/86400000);
+    if(dias>=EXPORT_REMINDER_DAYS) showExportReminder(dias);
+  }catch{}
+}
+function showExportReminder(dias){
+  if(document.getElementById('exportReminderBanner')) return;
+  const banner=document.createElement('div');
+  banner.id='exportReminderBanner';
+  banner.style.cssText='position:fixed;bottom:16px;right:16px;z-index:9999;background:#7c2d12;color:#fff;padding:12px 16px;border-radius:10px;box-shadow:0 4px 20px rgba(0,0,0,0.4);font-size:13px;max-width:320px;display:flex;flex-direction:column;gap:8px;border:1px solid #ea580c';
+  banner.innerHTML=`<div style="font-weight:700;font-size:14px">⚠️ Backup em atraso</div>
+    <div>Não exportas um backup há <strong>${dias} dias</strong>. Em caso de falha de sincronização, podes perder dados.</div>
+    <div style="display:flex;gap:8px;margin-top:4px">
+      <button onclick="document.getElementById('exportJsonBtn')?.click();markExported();document.getElementById('exportReminderBanner')?.remove()" style="flex:1;background:#ea580c;color:#fff;border:none;border-radius:6px;padding:6px 10px;cursor:pointer;font-weight:600">💾 Exportar agora</button>
+      <button onclick="markExported();document.getElementById('exportReminderBanner')?.remove()" style="flex:1;background:rgba(255,255,255,0.15);color:#fff;border:1px solid rgba(255,255,255,0.3);border-radius:6px;padding:6px 10px;cursor:pointer">Lembrar depois</button>
+    </div>`;
+  document.body.appendChild(banner);
+}
+
+function saveLocalSnapshot(s){
+  try{
+    const last = localStorage.getItem(SNAPSHOT_TS_KEY);
+    const horasPassadas = last ? (Date.now() - new Date(last).getTime()) / 3600000 : Infinity;
+    if(horasPassadas < SNAPSHOT_INTERVAL_H) return;
+    const snap = Object.assign({}, s, {logo: '__LOGO_OMITIDO__'});
+    localStorage.setItem(SNAPSHOT_KEY, JSON.stringify(snap));
+    localStorage.setItem(SNAPSHOT_TS_KEY, new Date().toISOString());
+    console.log('[Snapshot] Guardado localmente em ' + new Date().toLocaleString('pt-PT'));
+  } catch(e){ console.warn('[Snapshot] Erro ao guardar:', e.message); }
+}
+
 function attachEvents(){
   const mbb=document.getElementById('mobileBackBtn');
   if(mbb) mbb.addEventListener('click',()=>{ currentTab='home'; render(); });
@@ -7612,18 +7830,8 @@ function attachEvents(){
       save();render();
     });
   });
-  document.querySelectorAll('.horario-select').forEach(el=>{
-    el.addEventListener('change',()=>{
-      const slot=el.dataset.slot;const field=el.dataset.field;
-      if(!S.horario[slot]) S.horario[slot]={};
-      if(el.value){S.horario[slot][field]=field==='turmaId'?parseInt(el.value):el.value;}
-      else{
-        if(field==='turmaId'){delete S.horario[slot];}
-        else if(S.horario[slot]){delete S.horario[slot][field];}
-      }
-      save();
-    });
-  });
+  const syncBtn=document.getElementById('syncHorarioBtn');
+  if(syncBtn) syncBtn.addEventListener('click',syncHorarioFromMapa1);
 
   // Modal
   const cancelModal=document.getElementById('cancelModal');
@@ -8429,6 +8637,10 @@ document.addEventListener('visibilitychange', ()=>{
 // Polling a cada 15 segundos
 setInterval(()=>{ syncFromDB(); }, 15000);
 
+setTimeout(()=>{ if(currentUser) checkExportReminder(); }, 30000);
+// E depois diariamente (24h)
+setInterval(()=>{ if(currentUser) checkExportReminder(); }, 86400000);
+
 // Registar Service Worker (PWA)
 if('serviceWorker' in navigator){
   window.addEventListener('load', ()=>{
@@ -8589,14 +8801,26 @@ function rotSetStartMapIdx(idx) {
 function rotCalcMapaParaSemana(weekIdx) {
   const semanas = getSemanasLetivas();
   const info = semanas[weekIdx];
-  if (!info) return ((weekIdx % 4) + 4) % 4;
+  if (!info) return 0;
   const r2 = rotGetSemestreRange('sem2');
-  if (r2.inicio && info[0] >= r2.inicio) {
+  const isSem2 = r2.inicio && info[0] >= r2.inicio;
+
+  if (isSem2) {
+    // Contar apenas semanas letivas do 2º semestre até weekIdx (inclusive)
     const idxInicioSem2 = semanas.findIndex(s => s[0] >= r2.inicio);
-    const offset = weekIdx - (idxInicioSem2 >= 0 ? idxInicioSem2 : weekIdx);
-    return ((rotGetStartMapIdx() + offset) % 4 + 4) % 4;
+    let offset = 0;
+    for (let i = idxInicioSem2; i <= weekIdx; i++) {
+      if (rotSemanaTemAulas(semanas[i])) offset++;
+    }
+    return ((rotGetStartMapIdx() + offset - 1) % 4 + 4) % 4;
+  } else {
+    // Contar apenas semanas letivas do 1º semestre até weekIdx (inclusive)
+    let offset = 0;
+    for (let i = 0; i <= weekIdx; i++) {
+      if (rotSemanaTemAulas(semanas[i])) offset++;
+    }
+    return ((offset - 1) % 4 + 4) % 4;
   }
-  return ((weekIdx % 4) + 4) % 4;
 }
 // Troca o semestre ativo, guardando o estado atual e carregando (ou herdando) o do novo semestre
 function rotSwitchSemestre(sem) {
@@ -8726,6 +8950,7 @@ function renderRotacao() {
       <div class="filter-bar" style="padding-top:4px">
         <div class="section-title" style="margin:0">Mapas de Rotação</div>
         <div style="margin-left:auto;display:${mob?'none':'flex'};align-items:center;gap:6px;flex-wrap:wrap">
+          <button class="btn btn-sm" id="rotCalAnualBtn" style="display:flex;align-items:center;gap:5px;background:#f0fdf4;color:#166534;border-color:#bbf7d0">📅 Calendário Anual</button>
           <button class="btn btn-sm" id="rotExportJsonBtn" style="display:flex;align-items:center;gap:5px;background:#dcfce7;color:#15803d;border-color:#86efac">📤 Exportar JSON</button>
           <label class="btn btn-sm" style="display:flex;align-items:center;gap:5px;background:#dbeafe;color:#1e40af;border-color:#93c5fd;cursor:pointer;margin:0">📥 Importar JSON<input type="file" id="rotImportJsonInput" accept=".json" style="display:none"></label>
           <button class="btn btn-primary btn-sm" id="rotExportPdfBtn" style="display:flex;align-items:center;gap:6px">⬇ Exportar PDF</button>
@@ -8745,7 +8970,10 @@ function renderRotacao() {
             <div style="display:flex;gap:4px">
               ${[0,1,2,3].map(i=>`<button data-rotstartmap="${i}" style="padding:4px 10px;border-radius:6px;font-size:11px;font-weight:700;cursor:pointer;border:1.5px solid ${rotGetStartMapIdx()===i?'#b45309':'#fde68a'};background:${rotGetStartMapIdx()===i?'#b45309':'#fff'};color:${rotGetStartMapIdx()===i?'#fff':'#92400e'}">Mapa ${i+1}</button>`).join('')}
             </div>
-          </div>` : '';
+          </div>
+          <button id="rotImportarSem1Btn" style="display:flex;align-items:center;gap:6px;padding:6px 14px;border-radius:8px;font-size:11px;font-weight:700;cursor:pointer;border:1.5px solid #a5b4fc;background:#eef2ff;color:#3730a3;white-space:nowrap;transition:all 0.15s" title="Copia professores e mapa do 1º Semestre para o 2º Semestre">
+            📋 Importar dados 1º Semestre
+          </button>` : '';
         return `<div style="display:flex;gap:8px;margin-bottom:8px;flex-wrap:wrap;align-items:center">${semBtn('sem1','1º Semestre',lbl(r1))}${semBtn('sem2','2º Semestre',lbl(r2))}${continuacaoHtml}</div>`;
       })()}
       <div style="font-size:12px;color:var(--gray);margin-bottom:8px;padding-left:2px">Preenche o Mapa 1 · Os Mapas 2, 3 e 4 rodam automaticamente (G1 → E1 → G2 → E2 → G1)</div>
@@ -9011,6 +9239,202 @@ function rotSaveModal() {
 }
 
 // ── Exportar PDF ───────────────────────────────────────────────
+
+function rotCalendarioAnual() {
+  const semanas = getSemanasLetivas();
+  if (!semanas.length) {
+    alert('⚠️ Configura primeiro as datas do Calendário Letivo (início e fim de semestre).');
+    return;
+  }
+  const MAPA_COLORS = ['#1e40af','#15803d','#b45309','#7c3aed'];
+  const MAPA_BG     = ['#dbeafe','#dcfce7','#fef3c7','#ede9fe'];
+  const MAPA_LABEL  = ['MAPA 1','MAPA 2','MAPA 3','MAPA 4'];
+  const DIAS_LABEL  = ['Seg','Ter','Qua','Qui','Sex'];
+  const MESES_PT    = ['Janeiro','Fevereiro','Março','Abril','Maio','Junho',
+                        'Julho','Agosto','Setembro','Outubro','Novembro','Dezembro'];
+  const r2 = rotGetSemestreRange('sem2');
+
+  // Agrupar semanas por mês
+  const meses = {};
+  semanas.forEach((sem, wi) => {
+    const [y, m] = sem[0].split('-');
+    const key = `${y}-${m}`;
+    if (!meses[key]) meses[key] = [];
+    meses[key].push({ wi, sem, mapaIdx: rotGetMapaParaSemana(wi) });
+  });
+
+  let tableHtml = '';
+  Object.entries(meses).forEach(([key, semanasDoMes]) => {
+    const [y, m] = key.split('-');
+    const mesNome = MESES_PT[parseInt(m) - 1] + ' ' + y;
+    // Filtrar semanas com pelo menos 1 dia letivo para mostrar
+    const semanasVisiveis = semanasDoMes.filter(({sem}) => rotSemanaTemAulas(sem));
+    if (!semanasVisiveis.length) return;
+
+    tableHtml += `<div style="margin-bottom:18px">
+      <div style="font-size:12px;font-weight:800;letter-spacing:.06em;
+                  padding:4px 10px;background:#1a2d4a;color:#fff;border-radius:6px 6px 0 0;display:inline-block">
+        ${mesNome}
+      </div>
+      <table style="border-collapse:collapse;font-size:11px;border:1px solid #d1d5db;border-top:none">
+        <thead><tr>`;
+
+    semanasVisiveis.forEach(({wi, sem, mapaIdx}, si) => {
+      if (si > 0) tableHtml += `<th style="width:5px;padding:0;background:#f3f4f6;border:none"></th>`;
+      const semLabel = 'SEMANA ' + ((wi % 4) + 1);
+      const _hasOvr = S.rotacao && S.rotacao.calOverrides && S.rotacao.calOverrides[wi] !== undefined;
+      tableHtml += `<th colspan="5" data-rot-ciclar="${wi}"
+                    style="padding:4px 8px;text-align:center;font-size:10px;font-weight:800;
+                    background:${MAPA_BG[mapaIdx]};color:${MAPA_COLORS[mapaIdx]};
+                    border:1px solid ${MAPA_COLORS[mapaIdx]}40;letter-spacing:.04em;
+                    cursor:pointer;user-select:none">
+        ${MAPA_LABEL[mapaIdx]}${_hasOvr ? ' ✏️' : ''}</th>`;
+    });
+    tableHtml += `</tr><tr>`;
+    semanasVisiveis.forEach(({mapaIdx}, si) => {
+      if (si > 0) tableHtml += `<th style="width:5px;padding:0;background:#f3f4f6;border:none"></th>`;
+      DIAS_LABEL.forEach(d => {
+        tableHtml += `<th style="padding:3px 8px;text-align:center;font-size:9px;font-weight:700;
+                      color:#6b7280;background:#f9fafb;border:1px solid #e5e7eb">${d}</th>`;
+      });
+    });
+    tableHtml += `</tr></thead><tbody><tr>`;
+    semanasVisiveis.forEach(({sem, mapaIdx}, si) => {
+      if (si > 0) tableHtml += `<td style="width:5px;padding:0;background:#f3f4f6;border:none"></td>`;
+      sem.forEach(dt => {
+        const day  = parseInt(dt.split('-')[2]);
+        const isPausa = isFeriadoOrPausa(dt);
+        const isSem2  = r2.inicio && dt >= r2.inicio;
+        const bg = isPausa ? '#fee2e2' : (isSem2 ? '#f0fdf4' : '#fff');
+        const fc = isPausa ? '#991b1b' : (isSem2  ? '#166534' : '#1a2d4a');
+        const fw = isPausa ? '400' : '600';
+        tableHtml += `<td style="padding:4px 8px;text-align:center;font-weight:${fw};
+                      background:${bg};color:${fc};border:1px solid #e5e7eb;min-width:28px">${day}</td>`;
+      });
+    });
+    tableHtml += `</tr></tbody></table></div>`;
+  });
+
+  const legend = `<div style="display:flex;gap:12px;flex-wrap:wrap;margin-bottom:16px;align-items:center">
+    ${MAPA_LABEL.map((l,i)=>`<span style="display:inline-flex;align-items:center;gap:5px;font-size:11px;font-weight:700">
+      <span style="display:inline-block;width:14px;height:14px;border-radius:3px;background:${MAPA_BG[i]};border:1.5px solid ${MAPA_COLORS[i]}"></span>
+      <span style="color:${MAPA_COLORS[i]}">${l}</span></span>`).join('')}
+    <span style="display:inline-flex;align-items:center;gap:5px;font-size:11px;font-weight:700">
+      <span style="display:inline-block;width:14px;height:14px;border-radius:3px;background:#fee2e2;border:1.5px solid #ef4444"></span>
+      <span style="color:#991b1b">Feriado/Pausa</span></span>
+    <span style="display:inline-flex;align-items:center;gap:5px;font-size:11px;font-weight:700">
+      <span style="display:inline-block;width:14px;height:14px;border-radius:3px;background:#f0fdf4;border:1.5px solid #16a34a"></span>
+      <span style="color:#166534">2º Semestre</span></span>
+  </div>`;
+
+  const html = `<div style="padding:20px;font-family:Inter,sans-serif">
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px;flex-wrap:wrap;gap:10px">
+      <div>
+        <div style="font-size:20px;font-weight:800;color:#1a2d4a">📅 Calendário Anual de Rotações</div>
+        <div style="font-size:12px;color:#6b7280;margin-top:2px">${S.anoLetivo||''} · ${S.escola||''}</div>
+        <div style="font-size:11px;color:#6b7280;margin-top:4px">💡 Clica numa etiqueta MAPA para alterar · <strong>Guardar</strong> para confirmar.</div>
+      </div>
+      <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center">
+        <button id="rotCalReporBtn" class="btn btn-sm" style="background:#fef3c7;color:#92400e;border-color:#fcd34d">↺ Repor Original</button>
+        <button id="rotCalGuardarBtn" class="btn btn-sm" style="background:#dcfce7;color:#15803d;border-color:#86efac;font-weight:700">💾 Guardar</button>
+        <button onclick="rotCalendarioAnualPDF()" class="btn btn-primary btn-sm" style="display:flex;align-items:center;gap:6px">⬇ Exportar PDF</button>
+      </div>
+    </div>
+    ${legend}
+    <div id="rot-cal-anual-body">${tableHtml}</div>
+  </div>`;
+
+  const existing = document.getElementById('rot-cal-overlay');
+  if (existing) existing.remove();
+  const overlay = document.createElement('div');
+  overlay.id = 'rot-cal-overlay';
+  overlay.style.cssText = 'position:fixed;inset:0;z-index:9000;background:rgba(0,0,0,.55);display:flex;align-items:flex-start;justify-content:center;overflow-y:auto;padding:20px';
+  overlay.innerHTML = `<div style="background:#fff;border-radius:12px;max-width:960px;width:100%;position:relative;box-shadow:0 20px 60px rgba(0,0,0,.3)">
+    <button onclick="document.getElementById('rot-cal-overlay').remove()"
+      style="position:absolute;top:12px;right:14px;background:none;border:none;font-size:22px;cursor:pointer;color:#6b7280;z-index:1">×</button>
+    ${html}
+  </div>`;
+  document.body.appendChild(overlay);
+  // Event delegation para ciclar mapa ao clicar nas etiquetas
+  overlay.addEventListener('click', function(e) {
+    // Ciclar mapa ao clicar etiqueta
+    const th = e.target.closest('[data-rot-ciclar]');
+    if (th) {
+      const wi = parseInt(th.getAttribute('data-rot-ciclar'));
+      rotCiclarMapa(wi);
+      return;
+    }
+    // Guardar
+    if (e.target.id === 'rotCalGuardarBtn') {
+      if (_rotCalPendingOverrides) {
+        if (!S.rotacao) S.rotacao = {};
+        S.rotacao.calOverrides = Object.assign({}, _rotCalPendingOverrides);
+        _rotCalPendingOverrides = null;
+        save();
+      }
+      rotCalendarioAnual();
+      return;
+    }
+    // Repor original
+    if (e.target.id === 'rotCalReporBtn') {
+      _rotCalPendingOverrides = null;
+      rotClearOverrides();
+      return;
+    }
+  });
+}
+
+// Overrides pendentes (ainda não guardados)
+let _rotCalPendingOverrides = null;
+
+function rotCiclarMapa(wi) {
+  // Inicializar pendentes a partir dos overrides guardados
+  if (!_rotCalPendingOverrides) {
+    _rotCalPendingOverrides = Object.assign({}, (S.rotacao && S.rotacao.calOverrides) || {});
+  }
+  // Calcular mapa actual (pending ou guardado)
+  const savedOvr = (S.rotacao && S.rotacao.calOverrides) || {};
+  const current = _rotCalPendingOverrides[wi] !== undefined
+    ? _rotCalPendingOverrides[wi]
+    : rotCalcMapaParaSemana(wi);
+  _rotCalPendingOverrides[wi] = (current + 1) % 4;
+  rotCalendarioAnual();
+}
+
+function rotGetMapaParaSemana(weekIdx) {
+  // Usa pending se existir, senão saved, senão calculado
+  if (_rotCalPendingOverrides && _rotCalPendingOverrides[weekIdx] !== undefined)
+    return _rotCalPendingOverrides[weekIdx];
+  const overrides = (S.rotacao && S.rotacao.calOverrides) || {};
+  if (overrides[weekIdx] !== undefined) return overrides[weekIdx];
+  return rotCalcMapaParaSemana(weekIdx);
+}
+
+function rotCalendarioAnualPDF() {
+  const body = document.getElementById('rot-cal-anual-body');
+  if (!body) return;
+  const win = window.open('', '_blank');
+  win.document.write(`<!DOCTYPE html><html><head><meta charset="utf-8">
+    <title>Calendário Anual de Rotações ${S.anoLetivo||''}</title>
+    <style>
+      *{box-sizing:border-box;-webkit-print-color-adjust:exact!important;print-color-adjust:exact!important}
+      body{font-family:Arial,sans-serif;margin:10mm;font-size:9px;color:#1a2d4a}
+      h1{font-size:13px;font-weight:800;margin:0 0 2px}
+      .sub{font-size:9px;color:#6b7280;margin-bottom:10px}
+      table{border-collapse:collapse;font-size:8px;margin-bottom:12px}
+      th,td{border:1px solid #d1d5db;padding:2px 5px;text-align:center}
+      @media print{@page{size:A3 landscape;margin:8mm}button{display:none!important}}
+    </style>
+  </head><body>
+    <h1>📅 Calendário Anual de Rotações</h1>
+    <div class="sub">${S.anoLetivo||''} · ${S.escola||''}</div>
+    ${body.innerHTML}
+    <script>window.onload=function(){window.print()}<\/script>
+  </body></html>`);
+  win.document.close();
+}
+
+
 function rotExportPDF() {
   const logoDataUri = 'data:image/png;base64,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';
   const anoLetivo   = S && S.anoLetivo ? S.anoLetivo : '';
@@ -9222,8 +9646,33 @@ function attachRotacaoEvents() {
     });
   });
 
+  // Importar dados do 1º Semestre para o 2º Semestre
+  const importSem1Btn = document.getElementById('rotImportarSem1Btn');
+  if(importSem1Btn) importSem1Btn.addEventListener('click', () => {
+    const sem1 = S.rotacao && S.rotacao.sem1;
+    if(!sem1 || (!sem1.map1 && !sem1.professores)) {
+      alert('Não há dados do 1º Semestre para importar. Certifica-te de que o 1º Semestre está guardado.');
+      return;
+    }
+    if(!confirm('Isto vai copiar os professores e o Mapa de Rotação do 1º Semestre para o 2º Semestre, substituindo os dados atuais. Continuar?')) return;
+    if(!S.rotacao.sem2) S.rotacao.sem2 = {};
+    // Cópia profunda para não partilhar referências
+    if(sem1.map1)        rotMap1       = JSON.parse(JSON.stringify(sem1.map1));
+    if(sem1.locked)      rotLocked     = JSON.parse(JSON.stringify(sem1.locked));
+    if(sem1.slots)       rotSLOTS      = JSON.parse(JSON.stringify(sem1.slots));
+    if(sem1.professores) rotProfessors = JSON.parse(JSON.stringify(sem1.professores));
+    rotSaveMap();
+    rotSaveProfs();
+    render();
+    // Feedback visual
+    importSem1Btn.textContent = '✅ Importado!';
+    setTimeout(() => { if(importSem1Btn) importSem1Btn.innerHTML = '📋 Importar dados 1º Semestre'; }, 2200);
+  });
+
   // Exportar / Importar JSON
-  const expJsonBtn = document.getElementById('rotExportJsonBtn');
+  const calAnualBtn = document.getElementById('rotCalAnualBtn');
+  if(calAnualBtn) calAnualBtn.addEventListener('click', rotCalendarioAnual);
+    const expJsonBtn = document.getElementById('rotExportJsonBtn');
   if(expJsonBtn) expJsonBtn.addEventListener('click', rotExportJson);
   const impJsonInp = document.getElementById('rotImportJsonInput');
   if(impJsonInp) impJsonInp.addEventListener('change', e => { rotImportJson(e.target.files[0]); e.target.value=''; });
