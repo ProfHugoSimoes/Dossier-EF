@@ -4350,14 +4350,36 @@ function getAulasPrevistasEspaco(turmaId){
 
 function getModalidadesCounts(turmaId){
   const c={};
-  // Ler de modalidadesSemana (fonte principal após a refatoração)
+  const turma=S.turmas.find(t=>t.id==turmaId);
+  if(!turma) return c;
+  const nome=(turma.nome||'').trim();
+  const semanas=getSemanasLetivas();
+  // Ler de modalidadesSemana (fonte principal)
   Object.entries(S.modalidadesSemana||{}).forEach(([weekKey,slots])=>{
     Object.entries(slots).forEach(([slot,mod])=>{
       if(!mod) return;
-      const aula=S.horario[slot];
-      if(!aula||aula.turmaId!=turmaId) return;
-      // Só contar se existe sumário com conteúdo para esta aula nesta semana
-      const semanas=getSemanasLetivas();
+      // Verificar se este slot pertence à turma — via S.horario ou via Mapa activo
+      let pertence=false;
+      if(S.horario[slot]&&S.horario[slot].turmaId==turmaId){
+        pertence=true;
+      } else {
+        // Verificar via mapa: extrair di e bi do slot
+        const [diStr,biStr]=slot.split('_');
+        const di=parseInt(diStr), bi=parseInt(biStr);
+        const wi_sem=semanas.findIndex(s=>s[0]===weekKey);
+        if(wi_sem>=0&&di>=0&&bi>=0){
+          const mapaIdx=rotGetMapaParaSemana(wi_sem);
+          const mapaData=rotGetMapData(mapaIdx);
+          const si=ROT_BI_TO_SI[bi];
+          if(si>=0){
+            for(let ci=0;ci<ROT_COLS.length;ci++){
+              const val=(mapaData[di]&&mapaData[di][si]&&mapaData[di][si][ci]||'').trim();
+              if(val===nome||nome.includes(val)||val.includes(nome)){pertence=true;break;}
+            }
+          }
+        }
+      }
+      if(!pertence) return;
       const semana=semanas.find(s=>s[0]===weekKey);
       const dt=semana?getDateForSlot(semana,slot):null;
       const sumKey=dt?`${dt}_${slot}`:'';
@@ -4446,21 +4468,26 @@ function renderSemanal(){
             const isPausa=S.pausas?.includes(dt)||(S.pausasIntervalos||[]).some(p=>dt>=p.inicio&&dt<=p.fim);
             return `<td><div class="aula-feriado" style="${isPausa?'background:#fef3c7 !important;color:#92400e':''}">${isPausa?'⏸️ Pausa Letiva':'🌴 Feriado'}</div></td>`;
           }
-          // Descobrir turma via Mapa1 para este slot
+          // Descobrir turma via mapa activo da semana (não sempre o Mapa 1)
+          const _mapaIdx = rotGetMapaParaSemana(idx);
+          const _mapaData = rotGetMapData(_mapaIdx);
+          const _si = ROT_BI_TO_SI[bi]; // converter BLOCOS[bi] -> rotSLOTS[si]
           let turmaObj=null, espacoRot='', turmaIdSlot=null;
-          for(let ci=0;ci<ROT_COLS.length;ci++){
-            const val=(rotMap1[di]&&rotMap1[di][bi]&&rotMap1[di][bi][ci]||'').trim();
-            if(!val) continue;
-            // Procurar turma com este nome
-            const t=S.turmas.find(t2=>{
-              const tn=(t2.nome||'').trim();
-              return tn===val||tn.includes(val)||val.includes(tn);
-            });
-            if(!t) continue;
-            if(filterTurma!=='all'&&t.id!=filterTurma) continue;
-            turmaObj=t; turmaIdSlot=t.id;
-            espacoRot=rotGetEspacoParaSemana(ci,idx);
-            break;
+          if(_si >= 0) {
+            for(let ci=0;ci<ROT_COLS.length;ci++){
+              const val=(_mapaData[di]&&_mapaData[di][_si]&&_mapaData[di][_si][ci]||'').trim();
+              if(!val) continue;
+              const t=S.turmas.find(t2=>{
+                const tn=(t2.nome||'').trim();
+                return tn===val||tn.includes(val)||val.includes(tn);
+              });
+              if(!t) continue;
+              if(filterTurma!=='all'&&t.id!=filterTurma) continue;
+              turmaObj=t; turmaIdSlot=t.id;
+              // O espaço já está rotacionado em _mapaData — ler directamente
+              espacoRot=ROT_COLS[ci];
+              break;
+            }
           }
           // Fallback: verificar S.horario (compatibilidade)
           if(!turmaObj){
