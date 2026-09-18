@@ -932,6 +932,7 @@ let S = null;
 let currentTab='painel';
 let filterTurma='all';
 let filterPlanTurma=null; // turma selecionada na planificação
+let contadorAulasAberto=false; // painel do Contador de Aulas Planeadas (Plano Semanal)
 
 // Calcular o offset da semana corrente no arranque
 function calcCurrentWeekOffset(){
@@ -4423,6 +4424,161 @@ function getAllModalidadesCounts(){
   return c;
 }
 
+// Conta o nº de aulas planeadas (com modalidade atribuída) no Plano Semanal
+// para uma turma e modalidade, em todo o ano lectivo. Usa a mesma lógica
+// robusta de getModalidadesCounts (Mapa de Rotação como fonte principal,
+// S.horario como reserva) para identificar a que turma pertence cada aula.
+// semestre: 'all' | '1' | '2' | '3'
+function getAulasPlaneadasModalidade(turmaId, modalidade, semestre){
+  semestre=semestre||'all';
+  const turma=S.turmas.find(t=>t.id==turmaId);
+  if(!turma) return 0;
+  const nome=(turma.nome||'').trim();
+  const semanas=getSemanasLetivas();
+  let n=0;
+  Object.entries(S.modalidadesSemana||{}).forEach(([weekKey,slots])=>{
+    const wi=semanas.findIndex(s=>s[0]===weekKey);
+    if(wi<0) return;
+    const semana=semanas[wi];
+    Object.entries(slots).forEach(([slot,mod])=>{
+      if(mod!==modalidade) return;
+      let pertence=false;
+      if(S.horario[slot]&&S.horario[slot].turmaId==turmaId){
+        pertence=true;
+      } else {
+        const [diStr,biStr]=slot.split('_');
+        const di=parseInt(diStr), bi=parseInt(biStr);
+        const si=ROT_BI_TO_SI[bi];
+        if(si>=0){
+          const mapaIdx=rotGetMapaParaSemana(wi);
+          const mapaData=rotGetMapData(mapaIdx);
+          for(let ci=0;ci<ROT_COLS.length;ci++){
+            const val=(mapaData[di]&&mapaData[di][si]&&mapaData[di][si][ci]||'').trim();
+            if(val&&(val===nome||nome.includes(val)||val.includes(nome))){pertence=true;break;}
+          }
+        }
+      }
+      if(!pertence) return;
+      const dt=getDateForSlot(semana,slot);
+      if(!dt||dt>getFimAnoTurma(turmaId)||dt<getInicioAnoTurma(turmaId)||isFeriadoOrPausa(dt)) return;
+      if(semestre!=='all'&&getSemestre(dt)!==parseInt(semestre)) return;
+      n++;
+    });
+  });
+  return n;
+}
+
+// Total previsto (Previsão Anual Geral) para uma turma e modalidade,
+// somando os três grupos de espaço (E1+E2, G1, G2).
+// semestre: 'all' (soma todos) | '1' | '2' | '3'
+function getPrevistoAnualModalidade(turmaId, modalidade, semestre){
+  semestre=semestre||'all';
+  const plan=(S.planificacao&&S.planificacao[turmaId])||{};
+  const is3p=getNumPeriodos()===3;
+  return ['E1 + E2','G1','G2'].reduce((s,esp)=>{
+    const p=plan[`${esp}__${modalidade}`]||{};
+    if(semestre==='all'){
+      return s+(parseInt(p.previsto1s)||0)+(parseInt(p.previsto2s)||0)+(is3p?(parseInt(p.previsto3s)||0):0);
+    }
+    return s+(parseInt(p[`previsto${semestre}s`])||0);
+  },0);
+}
+
+function renderContadorAulasPainel(){
+  const todasMods=[...MODALIDADES].sort((a,b)=>a.localeCompare(b,'pt'));
+  const turmasAlvo = filterTurma==='all' ? S.turmas : S.turmas.filter(t=>t.id==filterTurma);
+  if(!turmasAlvo.length){
+    return `<div class="card" style="margin-bottom:12px">
+      <div class="empty-msg">Crie pelo menos uma turma para usar o contador.</div>
+    </div>`;
+  }
+  const is3p=getNumPeriodos()===3;
+  const semestres=is3p?[['1','1º Período'],['2','2º Período'],['3','3º Período']]:[['1','1º Semestre'],['2','2º Semestre']];
+  const isMulti=turmasAlvo.length>1;
+
+  function celula(planeadas,previsto,bg){
+    const bgCss=bg?`;background:${bg}`:'';
+    if(!planeadas&&!previsto) return `<td style="text-align:center;padding:5px 6px;border:1px solid var(--border);color:#cbd5e1${bgCss}">—</td>`;
+    const over=previsto>0&&planeadas>previsto;
+    const semPrevisto=previsto===0&&planeadas>0;
+    const cor=over?'var(--red)':semPrevisto?'var(--amber)':'var(--green)';
+    return `<td style="text-align:center;padding:5px 6px;border:1px solid var(--border);font-weight:700;color:${cor}${bgCss}">${planeadas}${previsto?'/'+previsto:''}</td>`;
+  }
+
+  // Dados de um semestre/período, para todas as turmas alvo
+  function dadosSemestre(sem){
+    const dadosPorTurma=turmasAlvo.map(t=>{
+      const mods=todasMods.map(m=>({
+        m,
+        planeadas:getAulasPlaneadasModalidade(t.id,m,sem),
+        previsto:getPrevistoAnualModalidade(t.id,m,sem)
+      })).filter(r=>r.planeadas>0||r.previsto>0);
+      const totPlaneadas=mods.reduce((s,r)=>s+r.planeadas,0);
+      const totPrevisto=mods.reduce((s,r)=>s+r.previsto,0);
+      return {turma:t, mods, totPlaneadas, totPrevisto};
+    });
+    const modsUsadas=[...new Set(dadosPorTurma.flatMap(d=>d.mods.map(r=>r.m)))].sort((a,b)=>a.localeCompare(b,'pt'));
+    return {dadosPorTurma, modsUsadas};
+  }
+
+  function blocoSemestre(sem,label){
+    const {dadosPorTurma,modsUsadas}=dadosSemestre(sem);
+    let tabelaHtml;
+    if(!isMulti){
+      const d=dadosPorTurma[0];
+      tabelaHtml=`<table style="width:100%;border-collapse:collapse;font-size:12px">
+        <thead><tr style="background:var(--navy)">
+          <th style="text-align:left;padding:6px 8px;color:#fff;border:1px solid rgba(255,255,255,0.15)">Modalidade</th>
+          <th style="text-align:center;padding:6px 8px;color:#fff;border:1px solid rgba(255,255,255,0.15);width:120px">Planeadas / Previsto</th>
+        </tr></thead>
+        <tbody>
+          ${d.mods.length? d.mods.map(r=>`<tr>
+            <td style="padding:5px 8px;border:1px solid var(--border)">${esc(r.m)}</td>
+            ${celula(r.planeadas,r.previsto)}
+          </tr>`).join('') : `<tr><td colspan="2" style="padding:14px;text-align:center;color:var(--gray)">Sem aulas planeadas nem previsão registada.</td></tr>`}
+          <tr style="background:#f0f4ff;font-weight:700">
+            <td style="padding:6px 8px;border:1px solid var(--border)">Total</td>
+            ${celula(d.totPlaneadas,d.totPrevisto,'#f0f4ff')}
+          </tr>
+        </tbody>
+      </table>`;
+    } else {
+      tabelaHtml=`<table style="width:100%;border-collapse:collapse;font-size:11px">
+        <thead><tr style="background:var(--navy)">
+          <th style="text-align:left;padding:6px 8px;color:#fff;position:sticky;left:0;top:0;background:var(--navy);z-index:3;border:1px solid rgba(255,255,255,0.15)">Turma</th>
+          ${modsUsadas.map(m=>`<th style="text-align:center;padding:6px 4px;color:#fff;position:sticky;top:0;background:var(--navy);z-index:2;border:1px solid rgba(255,255,255,0.15);min-width:60px">${esc(m)}</th>`).join('')}
+          <th style="text-align:center;padding:6px 8px;color:#fff;position:sticky;top:0;right:0;background:var(--navy2);z-index:3;border:1px solid rgba(255,255,255,0.15)">Total</th>
+        </tr></thead>
+        <tbody>
+          ${dadosPorTurma.length? dadosPorTurma.map(d=>`<tr>
+            <td style="padding:5px 8px;border:1px solid var(--border);font-weight:700;position:sticky;left:0;background:#fff">${esc(d.turma.nome)}</td>
+            ${modsUsadas.map(m=>{
+              const r=d.mods.find(x=>x.m===m);
+              return celula(r?r.planeadas:0, r?r.previsto:0);
+            }).join('')}
+            ${celula(d.totPlaneadas,d.totPrevisto,'#f8fafc')}
+          </tr>`).join('') : `<tr><td colspan="${modsUsadas.length+2}" style="padding:14px;text-align:center;color:var(--gray)">Sem dados.</td></tr>`}
+        </tbody>
+      </table>`;
+    }
+    return `<div style="margin-bottom:16px">
+      <div style="font-size:13px;font-weight:700;color:var(--navy);margin-bottom:6px">${label}</div>
+      <div style="overflow:auto;border:1px solid var(--border);border-radius:8px;max-height:320px">${tabelaHtml}</div>
+    </div>`;
+  }
+
+  const legenda=`<p style="font-size:11px;color:var(--gray);margin-top:4px;margin-bottom:0">💡 Cada célula mostra <b>aulas planeadas / total previsto</b> nesse semestre (Previsão Anual Geral, soma dos espaços). Atualiza-se automaticamente ao gravar uma aula ou a Planificação. <span style="color:var(--red);font-weight:700">Vermelho</span> = já ultrapassou o previsto · <span style="color:var(--amber);font-weight:700">Laranja</span> = sem previsão registada. Só mostra modalidades com aulas planeadas ou previsão nesse período.</p>`;
+
+  return `<div class="card" style="margin-bottom:12px">
+    <div style="display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:10px">
+      <div style="font-size:14px;font-weight:700;color:var(--navy)">📊 Contador de Aulas Planeadas ${isMulti?'<small style="font-weight:400;color:var(--gray)">— Todas as turmas</small>':`<small style="font-weight:400;color:var(--gray)">— ${esc(turmasAlvo[0].nome)}</small>`}</div>
+      <button class="btn btn-sm" id="btnFecharContador">✕ Fechar</button>
+    </div>
+    ${semestres.map(([sem,label])=>blocoSemestre(sem,label)).join('')}
+    ${legenda}
+  </div>`;
+}
+
 // === SEMANAL ===
 function renderSemanal(){
   const semanas=getSemanasLetivas();
@@ -4437,9 +4593,11 @@ function renderSemanal(){
   if(isCurrentWeek) fetchWeatherWeek(semana);
 
   return `<div>
+    ${contadorAulasAberto?renderContadorAulasPainel():''}
     <div class="filter-bar">
       <div class="section-title" style="margin:0">Plano Semanal</div>
       <select class="filter-select" id="filterTurmaS">${turmasOpts}</select>
+      <button class="btn btn-sm" id="btnContadorAulas" title="Contador de aulas planeadas por modalidade, cruzado com a Previsão Anual Geral" style="display:flex;align-items:center;gap:5px">📊 ${contadorAulasAberto?'Ocultar':'Mostrar'} Contador</button>
       <div style="margin-left:auto;display:flex;align-items:center;gap:8px">
         <button class="btn btn-sm" id="prevWeek">◀ Anterior</button>
         <span style="font-size:12px;font-weight:600;color:var(--navy);min-width:230px;text-align:center">${semLabel}${isCurrentWeek?' <span style="font-size:10px;background:#dbeafe;color:#1d4ed8;padding:2px 7px;border-radius:10px;font-weight:600">Semana atual</span>':''}</span>
@@ -5913,14 +6071,38 @@ function renderModal(){
     const aula=S.horario[modal.slot]||{};
     const weekKey=modal.weekKey||'';
     const modalidadeSemana=weekKey?(S.modalidadesSemana[weekKey]||{})[modal.slot]||'':'';
-    // Calcular o espaço rotacionado para a semana actual
     const semanas=getSemanasLetivas();
     const weekIdx=weekKey?semanas.findIndex(s=>s[0]===weekKey):-1;
-    const espacoRot=weekIdx>=0&&aula.espaco?getEspacoRotacionado(aula.espaco,weekIdx):aula.espaco||'';
+    // Fonte primária: Mapa de Rotação activo desta semana — a mesma lógica usada
+    // para desenhar a célula no Plano Semanal, para garantir que o modal mostra
+    // exactamente a turma/espaço que aparecem na grelha.
+    const [_diStr,_biStr]=modal.slot.split('_');
+    const _di=parseInt(_diStr), _bi=parseInt(_biStr);
+    const _si=ROT_BI_TO_SI[_bi];
+    let mapaTurmaId=null, mapaEspaco='';
+    if(weekIdx>=0&&_si>=0){
+      const _mapaIdx=rotGetMapaParaSemana(weekIdx);
+      const _mapaData=rotGetMapData(_mapaIdx);
+      for(let ci=0;ci<ROT_COLS.length;ci++){
+        const val=(_mapaData[_di]&&_mapaData[_di][_si]&&_mapaData[_di][_si][ci]||'').trim();
+        if(!val) continue;
+        const t=S.turmas.find(t2=>{
+          const tn=(t2.nome||'').trim();
+          return tn===val||tn.includes(val)||val.includes(tn);
+        });
+        if(!t) continue;
+        mapaTurmaId=t.id; mapaEspaco=ROT_COLS[ci];
+        break;
+      }
+    }
+    // Fallback: horário base (compatibilidade, só usado se a turma não constar do Mapa)
+    const espacoLegacy=weekIdx>=0&&aula.espaco?getEspacoRotacionado(aula.espaco,weekIdx):aula.espaco||'';
+    const turmaIdAtual=mapaTurmaId!=null?mapaTurmaId:aula.turmaId;
+    const espacoRot=mapaTurmaId!=null?mapaEspaco:espacoLegacy;
     return `<div class="modal-overlay" id="modalOverlay"><div class="modal">
       <div class="modal-title">✏️ Editar Aula — ${DIAS[parseInt(modal.slot.split('_')[0])]} ${BLOCOS[parseInt(modal.slot.split('_')[1])]}</div>
       <div class="modal-field"><label>Turma</label>
-        <select id="editTurma"><option value="">— Sem aula —</option>${S.turmas.map(t=>`<option value="${t.id}"${aula.turmaId==t.id?' selected':''}>${t.nome}</option>`).join('')}</select></div>
+        <select id="editTurma"><option value="">— Sem aula —</option>${S.turmas.map(t=>`<option value="${t.id}"${turmaIdAtual==t.id?' selected':''}>${t.nome}</option>`).join('')}</select></div>
       <div class="modal-field"><label>Espaço <small style="color:var(--gray);font-weight:400">(desta semana)</small></label>
         <select id="editEspaco"><option value="">—</option>${ESPACOS.map(e=>`<option value="${e}"${espacoRot===e?' selected':''}>${e}</option>`).join('')}</select></div>
       <div class="modal-field"><label>Modalidade <small style="color:var(--gray);font-weight:400">(apenas para esta semana)</small></label>
@@ -6453,6 +6635,10 @@ function attachEvents(){
   if(prevWeek) prevWeek.addEventListener('click',()=>{currentWeekOffset=Math.max(0,currentWeekOffset-1);render();});
   const nextWeek=document.getElementById('nextWeek');
   if(nextWeek) nextWeek.addEventListener('click',()=>{const max=getSemanasLetivas().length-1;currentWeekOffset=Math.min(max,currentWeekOffset+1);render();});
+  const btnContadorAulas=document.getElementById('btnContadorAulas');
+  if(btnContadorAulas) btnContadorAulas.addEventListener('click',()=>{contadorAulasAberto=!contadorAulasAberto;render();});
+  const btnFecharContador=document.getElementById('btnFecharContador');
+  if(btnFecharContador) btnFecharContador.addEventListener('click',()=>{contadorAulasAberto=false;render();});
   const fTS=document.getElementById('filterTurmaS');
   if(fTS) fTS.addEventListener('change',e=>{filterTurma=e.target.value;render();});
   document.querySelectorAll('.aula-cell[data-slot]').forEach(el=>{
@@ -9447,18 +9633,38 @@ function rotCalendarioAnualPDF() {
     <title>Calendário Anual de Rotações ${S.anoLetivo||''}</title>
     <style>
       *{box-sizing:border-box;-webkit-print-color-adjust:exact!important;print-color-adjust:exact!important}
-      body{font-family:Arial,sans-serif;margin:10mm;font-size:9px;color:#1a2d4a}
+      html,body{margin:0;padding:0}
+      body{font-family:Arial,sans-serif;font-size:9px;color:#1a2d4a}
       h1{font-size:13px;font-weight:800;margin:0 0 2px}
       .sub{font-size:9px;color:#6b7280;margin-bottom:10px}
       table{border-collapse:collapse;font-size:8px;margin-bottom:12px}
       th,td{border:1px solid #d1d5db;padding:2px 5px;text-align:center}
-      @media print{@page{size:A3 landscape;margin:8mm}button{display:none!important}}
+      #printOuter{overflow:hidden}
+      #printScale{transform-origin:top left;width:max-content}
+      @media print{@page{size:A4 portrait;margin:8mm}button{display:none!important}}
     </style>
   </head><body>
-    <h1>📅 Calendário Anual de Rotações</h1>
-    <div class="sub">${S.anoLetivo||''} · ${S.escola||''}</div>
-    ${body.innerHTML}
-    <script>window.onload=function(){window.print()}<\/script>
+    <div id="printOuter"><div id="printScale">
+      <h1>📅 Calendário Anual de Rotações</h1>
+      <div class="sub">${S.anoLetivo||''} · ${S.escola||''}</div>
+      ${body.innerHTML}
+    </div></div>
+    <script>
+      window.onload = function(){
+        var scaleEl = document.getElementById('printScale');
+        var outer   = document.getElementById('printOuter');
+        // Área útil de impressão: A4 vertical (210 x 297mm) menos margens de 8mm
+        var pxPerMm = 96/25.4;
+        var availW  = (210 - 8*2) * pxPerMm;
+        var availH  = (297 - 8*2) * pxPerMm;
+        var w = scaleEl.scrollWidth, h = scaleEl.scrollHeight;
+        var scale = Math.min(availW/w, availH/h, 1);
+        scaleEl.style.transform = 'scale(' + scale + ')';
+        outer.style.width  = (w*scale) + 'px';
+        outer.style.height = (h*scale) + 'px';
+        window.print();
+      };
+    <\/script>
   </body></html>`);
   win.document.close();
 }
