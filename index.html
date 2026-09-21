@@ -4817,6 +4817,14 @@ function renderSumariosTodasTurmas(turmasOpts){
   </div>`;
 }
 
+// Nome "curto" para mostrar nas listas de faltas: primeiro nome + último apelido
+// (evita ambiguidade entre alunos com o mesmo primeiro nome, ex. "João Silva" vs "João Costa")
+function nomeCurto(nomeCompleto){
+  const partes=(nomeCompleto||'').trim().split(/\s+/).filter(Boolean);
+  if(partes.length<=1) return partes[0]||'';
+  return `${partes[0]} ${partes[partes.length-1]}`;
+}
+
 function renderSumarioRow(a,turma,opts){
   opts=opts||{};
   const sum=S.sumarios[a.sumKey]||{};
@@ -4825,7 +4833,7 @@ function renderSumarioRow(a,turma,opts){
   const bi=parseInt(a.slot.split('_')[1]);
   const diaSem=DIAS[di]||'';
   const bloco=BLOCOS[bi]||'';
-  const resumo=Object.entries(faltas).reduce((acc,[aluno,tipo])=>{if(tipo){(acc[tipo]=acc[tipo]||[]).push(aluno.split(' ')[0])}return acc;},{});
+  const resumo=Object.entries(faltas).reduce((acc,[aluno,tipo])=>{if(tipo){(acc[tipo]=acc[tipo]||[]).push(nomeCurto(aluno))}return acc;},{});
   // Calcular o índice da semana letiva para aplicar rotação do espaço
   const semanas=getSemanasLetivas();
   const weekIdx=semanas.findIndex(sem=>sem.includes(a.dt));
@@ -4859,7 +4867,7 @@ function renderSumarioRow(a,turma,opts){
       const nome=typeof a2==='string'?a2:a2.nome;
       const num=typeof a2==='object'&&a2.num?a2.num:ai+1;
       const tipo=faltas[nome]||'';
-      return `<button class="aluno-btn${tipo?' falta-'+tipo:''}" data-sumkey="${a.sumKey}" data-aluno="${esc(nome)}" data-num="${num}">${num} - ${esc(nome.split(' ')[0])}${tipo?` (${FALTA_LABELS[tipo]})`:''}</button>`;
+      return `<button class="aluno-btn${tipo?' falta-'+tipo:''}" data-sumkey="${a.sumKey}" data-aluno="${esc(nome)}" data-num="${num}">${num} - ${esc(nomeCurto(nome))}${tipo?` (${FALTA_LABELS[tipo]})`:''}</button>`;
     }).join('')}</div>
     ${Object.keys(resumo).length?`<div class="faltas-resumo">${Object.entries(resumo).map(([t,ns])=>`<strong>${FALTA_LABELS[t]}:</strong> ${ns.join(', ')}`).join(' | ')}</div>`:''}
   </div>`;
@@ -6797,14 +6805,14 @@ function attachEvents(){
       S.lastSumarioTurma=parseInt(filterTurma)||S.lastSumarioTurma;
       // Atualizar só este botão no DOM (sem re-render para não perder a posição de scroll)
       el.className='aluno-btn'+(novoTipo?' falta-'+novoTipo:'');
-      el.textContent=`${num} - ${aluno.split(' ')[0]}`+(novoTipo?` (${FALTA_LABELS[novoTipo]})`:'');
+      el.textContent=`${num} - ${nomeCurto(aluno)}`+(novoTipo?` (${FALTA_LABELS[novoTipo]})`:'');
       // Atualizar o resumo de faltas do bloco sem re-render
       const bloco=el.closest('.sumario-bloco, [data-sumkey]')?.parentElement;
       const resumoEl=el.closest('.alunos-faltas')?.nextElementSibling;
       if(resumoEl&&resumoEl.classList.contains('faltas-resumo')){
         const todasFaltas=S.faltas[key]||{};
         const resumo={};
-        Object.entries(todasFaltas).forEach(([n,t])=>{ if(t){ if(!resumo[t]) resumo[t]=[]; resumo[t].push(n.split(' ')[0]); } });
+        Object.entries(todasFaltas).forEach(([n,t])=>{ if(t){ if(!resumo[t]) resumo[t]=[]; resumo[t].push(nomeCurto(n)); } });
         resumoEl.innerHTML=Object.entries(resumo).map(([t,ns])=>`<strong>${FALTA_LABELS[t]}:</strong> ${ns.join(', ')}`).join(' | ');
       }
       save();
