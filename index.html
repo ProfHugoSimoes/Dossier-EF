@@ -634,6 +634,7 @@ async function initApp(){
   currentWeekOffset = calcCurrentWeekOffset();
   rotCurrentMap = currentWeekOffset % 4;
   render();
+  checkExportReminder();
 }
 
 // ── Render do ecrã inicial (splash) ────────────────────────────
@@ -933,6 +934,7 @@ let currentTab='painel';
 let filterTurma='all';
 let filterPlanTurma=null; // turma selecionada na planificação
 let contadorAulasAberto=false; // painel do Contador de Aulas Planeadas (Plano Semanal)
+let sumAutoRestoreDone=false; // só faz a auto-restauração da última turma em Sumários uma vez por sessão
 
 // Calcular o offset da semana corrente no arranque
 function calcCurrentWeekOffset(){
@@ -4691,16 +4693,22 @@ function renderSemanal(){
 // === SUMÁRIOS ===
 function renderSumarios(){
   // Se não há turma seleccionada, usar a última turma editada nos sumários
-  if((!filterTurma||filterTurma==='all')&&S.lastSumarioTurma){
-    const existe=S.turmas.find(t=>t.id==S.lastSumarioTurma);
-    if(existe) filterTurma=String(S.lastSumarioTurma);
+  // (só na primeira vez que este separador é aberto nesta sessão — depois disso
+  // a escolha do utilizador, incluindo "Todas as turmas", mantém-se fixa)
+  if(!sumAutoRestoreDone){
+    sumAutoRestoreDone=true;
+    if((!filterTurma||filterTurma==='all')&&S.lastSumarioTurma){
+      const existe=S.turmas.find(t=>t.id==S.lastSumarioTurma);
+      if(existe) filterTurma=String(S.lastSumarioTurma);
+    }
   }
-  const turmasOpts=`<option value="">Selecionar turma...</option>${S.turmas.map(t=>`<option value="${t.id}"${filterTurma==t.id?' selected':''}>${esc(t.nome)}</option>`).join('')}`;
-  if(!filterTurma||filterTurma==='all'){
+  const turmasOpts=`<option value="">Selecionar turma...</option><option value="all"${filterTurma==='all'?' selected':''}>📅 Todas as turmas (por dia)</option>${S.turmas.map(t=>`<option value="${t.id}"${filterTurma==t.id?' selected':''}>${esc(t.nome)}</option>`).join('')}`;
+  if(!filterTurma){
     return `<div><div class="section-title">Sumários e Faltas</div>
       <div class="filter-bar"><select class="filter-select" id="filterTurmaSum">${turmasOpts}</select></div>
       <div class="empty-msg">📋 Selecione uma turma para ver os sumários</div></div>`;
   }
+  if(filterTurma==='all') return renderSumariosTodasTurmas(turmasOpts);
   const turma=S.turmas.find(t=>t.id==filterTurma);
   if(!turma) return '';
   const semanas=getSemanasLetivas();
@@ -4746,7 +4754,71 @@ function renderSumarios(){
   </div>`;
 }
 
-function renderSumarioRow(a,turma){
+// Vista "Todas as turmas", agrupada por dia: junta as aulas de todas as
+// turmas do ano lectivo (respeitando o filtro de semestre/período) e
+// organiza-as cronologicamente, com um cabeçalho por dia.
+function renderSumariosTodasTurmas(turmasOpts){
+  const semanas=getSemanasLetivas();
+  const aulasOrdenadas=[];
+  S.turmas.forEach(turma=>{
+    Object.entries(S.horario).forEach(([slot,data])=>{
+      if(data&&data.turmaId==turma.id){
+        semanas.forEach(semana=>{
+          const dt=getDateForSlot(semana,slot);
+          if(dt&&dt<=getFimAnoTurma(turma.id)&&dt>=getInicioAnoTurma(turma.id)&&!isFeriadoOrPausa(dt)){
+            const sem=getSemestre(dt);
+            if(filterSemestre==='all'||sem==filterSemestre){
+              aulasOrdenadas.push({dt,slot,data,sem,sumKey:`${dt}_${slot}`,turma});
+            }
+          }
+        });
+      }
+    });
+  });
+  aulasOrdenadas.sort((a,b)=>a.dt===b.dt
+    ? (parseInt(a.slot.split('_')[1])-parseInt(b.slot.split('_')[1]))||a.turma.nome.localeCompare(b.turma.nome,'pt')
+    : a.dt.localeCompare(b.dt));
+  const porDia=[];
+  aulasOrdenadas.forEach(a=>{
+    const ultimo=porDia[porDia.length-1];
+    if(!ultimo||ultimo.dt!==a.dt) porDia.push({dt:a.dt,items:[a]});
+    else ultimo.items.push(a);
+  });
+  return `<div>
+    <div style="position:sticky;top:0;z-index:50;background:#f0f2f5;padding-bottom:8px;margin-bottom:0">
+      <div class="section-title" style="padding-top:4px">Sumários e Faltas — Todas as turmas</div>
+      <div class="filter-bar">
+        <select class="filter-select" id="filterTurmaSum">${turmasOpts}</select>
+        <div class="semestre-tabs">
+          <button class="semestre-tab${filterSemestre==='1'?' active':''}" data-sem="1">${getLabelPeriodo(1)}</button>
+          <button class="semestre-tab${filterSemestre==='2'?' active':''}" data-sem="2">${getLabelPeriodo(2)}</button>
+          ${getNumPeriodos()===3?`<button class="semestre-tab${filterSemestre==='3'?' active':''}" data-sem="3">${getLabelPeriodo(3)}</button>`:''}
+          <button class="semestre-tab${filterSemestre==='all'?' active':''}" data-sem="all">Todos</button>
+        </div>
+        <span style="font-size:12px;color:var(--gray)">${aulasOrdenadas.length} aulas</span>
+        <button class="btn btn-primary" id="irHojeBtn" title="Ir para a aula mais pr\u00f3xima da data atual" style="margin-left:auto;display:flex;align-items:center;gap:8px;white-space:nowrap;padding:10px 20px;font-size:14px;font-weight:700;border-radius:9px">\u{1F4CD} Hoje</button>
+      </div>
+      <div class="faltas-legenda" style="margin-bottom:0;padding-bottom:8px;border-bottom:1px solid var(--border)">
+        <span class="legenda-item"><span class="legenda-dot" style="background:#dc2626"></span><strong>FP</strong> Presença</span>
+        <span class="legenda-item"><span class="legenda-dot" style="background:#d97706"></span><strong>FA</strong> Atraso</span>
+        <span class="legenda-item"><span class="legenda-dot" style="background:#2563eb"></span><strong>FM</strong> Material</span>
+        <span class="legenda-item"><span class="legenda-dot" style="background:#7c3aed"></span><strong>FD</strong> Disciplinar</span>
+        <span style="color:var(--gray);font-size:11px">— Clique no nome do aluno para ciclar os tipos de falta</span>
+      </div>
+    </div>
+    ${porDia.length===0?`<div class="empty-msg">Nenhuma aula encontrada para este filtro.</div>`:''}
+    ${porDia.map(d=>{
+      const di=parseInt(d.items[0].slot.split('_')[0]);
+      const diaSem=DIAS[di]||'';
+      return `<div style="margin:18px 0 8px;padding:7px 12px;background:var(--navy);color:#fff;border-radius:8px;font-size:13px;font-weight:700;display:flex;align-items:center;gap:8px">
+        📅 ${diaSem}, ${fmtDate(d.dt)} <span style="font-weight:400;opacity:0.8">— ${d.items.length} ${d.items.length===1?'aula':'aulas'}</span>
+      </div>${d.items.map(a=>renderSumarioRow(a,a.turma,{mostrarTurma:true})).join('')}`;
+    }).join('')}
+  </div>`;
+}
+
+function renderSumarioRow(a,turma,opts){
+  opts=opts||{};
   const sum=S.sumarios[a.sumKey]||{};
   const faltas=S.faltas[a.sumKey]||{};
   const di=parseInt(a.slot.split('_')[0]);
@@ -4766,6 +4838,7 @@ function renderSumarioRow(a,turma){
   const modalidadeOpts=MODALIDADES.map(m=>`<option value="${esc(m)}"${modalidadeSumario===m?' selected':''}>${esc(m)}</option>`).join('');
   return `<div class="sumario-row" data-date="${a.dt}">
     <div class="sumario-header">
+      ${opts.mostrarTurma?`<span class="tag" style="background:var(--navy);color:#fff">${esc(turma.nome)}</span>`:''}
       <span class="sumario-date">${fmtDate(a.dt)} (${diaSem})</span>
       <span class="sumario-hora">${bloco}</span>
       ${espacoRot?`<span class="sumario-espaco">${espacoRot}</span>`:''}
@@ -6359,14 +6432,33 @@ function calcStateWeight(s){
 }
 
 // ── Lembrete de exportação ────────────────────────────────────
+// A data do último backup vive em S.lastExportAt, sincronizada via Supabase
+// (dentro do próprio JSON do estado), para que o aviso funcione da mesma forma
+// em qualquer dispositivo/navegador onde a app "definitiva" seja aberta — e não
+// apenas no browser/computador onde foi feito o último teste local.
 const EXPORT_REMINDER_DAYS=7;
 function markExported(){
-  try{ localStorage.setItem('dossier_lastExport', new Date().toISOString()); }catch{}
+  const now=new Date().toISOString();
+  try{ localStorage.setItem('dossier_lastExport', now); }catch{}
+  if(S){ S.lastExportAt=now; save(); }
 }
 function checkExportReminder(){
   try{
-    const last=localStorage.getItem('dossier_lastExport');
-    if(!last){ markExported(); return; } // primeira vez — inicializa sem avisar
+    let last = S&&S.lastExportAt;
+    if(!last){
+      // Migração: se já existir uma data guardada só localmente (versões antigas
+      // desta funcionalidade), aproveita-a e passa a sincronizá-la via Supabase,
+      // em vez de reiniciar a contagem silenciosamente.
+      const legacyLocal=localStorage.getItem('dossier_lastExport');
+      if(legacyLocal&&S){
+        S.lastExportAt=legacyLocal;
+        save();
+        last=legacyLocal;
+      } else {
+        markExported();
+        return; // primeira vez — inicializa sem avisar
+      }
+    }
     const dias=Math.floor((Date.now()-new Date(last).getTime())/86400000);
     if(dias>=EXPORT_REMINDER_DAYS) showExportReminder(dias);
   }catch{}
