@@ -11135,50 +11135,60 @@ function trTimerUpdateUI() {
   disp.style.opacity = '1';
 }
 
-function trTimerBuzzer() {
+// Toca um único "blast" de buzina com a duração/frequências/volume dados,
+// a começar num instante relativo (delay) a partir de agora.
+function trPlayHornBlast(freqs, vols, dur, delay) {
+  const ctx = _trTimer.audioCtx;
+  const t0 = ctx.currentTime + delay;
+  freqs.forEach((freq, i) => {
+    const osc  = ctx.createOscillator();
+    const gain = ctx.createGain();
+    const dist = ctx.createWaveShaper();
+
+    // Distorção para som mais áspero/metálico
+    const samples = 512;
+    const curve = new Float32Array(samples);
+    for (let j = 0; j < samples; j++) {
+      const x = (j * 2) / samples - 1;
+      curve[j] = (Math.PI + 300) * x / (Math.PI + 300 * Math.abs(x));
+    }
+    dist.curve = curve;
+
+    osc.type = 'sawtooth';
+    osc.frequency.setValueAtTime(freq, t0);
+    osc.frequency.linearRampToValueAtTime(freq * 0.97, t0 + dur);
+
+    const vol = vols[i];
+    gain.gain.setValueAtTime(0, t0);
+    gain.gain.linearRampToValueAtTime(vol, t0 + 0.015); // ataque rápido
+    gain.gain.setValueAtTime(vol, t0 + Math.max(0, dur - 0.08));
+    gain.gain.linearRampToValueAtTime(0, t0 + dur);      // decaimento final
+
+    osc.connect(dist);
+    dist.connect(gain);
+    gain.connect(ctx.destination);
+    osc.start(t0);
+    osc.stop(t0 + dur);
+  });
+}
+
+// Apito de "início" — um único blast curto e agudo (soa a apito de arranque).
+// Apito de "fim" — dois blasts curtos e graves em sequência (soa a buzina de fim/final apito).
+function trTimerBuzzer(kind) {
   try {
     // Reutilizar contexto existente (criado no gesto do utilizador) — obrigatório em mobile
     if (!_trTimer.audioCtx) return;
-    const ctx = _trTimer.audioCtx;
-    if (ctx.state === 'suspended') ctx.resume();
-    const dur = 2.0;
+    if (_trTimer.audioCtx.state === 'suspended') _trTimer.audioCtx.resume();
 
-    // Air horn clássico: mistura de várias frequências harmónicas para som metálico/pneumático
-    const freqs = [233, 311, 466, 580];
-    freqs.forEach((freq, i) => {
-      const osc  = ctx.createOscillator();
-      const gain = ctx.createGain();
-      const dist = ctx.createWaveShaper();
-
-      // Distorção para som mais áspero/metálico
-      const samples = 512;
-      const curve = new Float32Array(samples);
-      for (let j = 0; j < samples; j++) {
-        const x = (j * 2) / samples - 1;
-        curve[j] = (Math.PI + 300) * x / (Math.PI + 300 * Math.abs(x));
-      }
-      dist.curve = curve;
-
-      osc.type = 'sawtooth';
-      osc.frequency.setValueAtTime(freq, ctx.currentTime);
-      // Ligeira queda de frequência no fim (ar a acabar)
-      osc.frequency.linearRampToValueAtTime(freq * 0.97, ctx.currentTime + dur);
-
-      // Volume de cada harmónico (fundamental mais forte)
-      const vol = [0.45, 0.30, 0.20, 0.12][i];
-      gain.gain.setValueAtTime(0, ctx.currentTime);
-      gain.gain.linearRampToValueAtTime(vol, ctx.currentTime + 0.02); // ataque rápido
-      gain.gain.setValueAtTime(vol, ctx.currentTime + dur - 0.15);
-      gain.gain.linearRampToValueAtTime(0, ctx.currentTime + dur);    // decaimento final
-
-      osc.connect(dist);
-      dist.connect(gain);
-      gain.connect(ctx.destination);
-      osc.start(ctx.currentTime);
-      osc.stop(ctx.currentTime + dur);
-    });
+    if (kind === 'start') {
+      trPlayHornBlast([700, 933], [0.4, 0.22], 0.28, 0);
+    } else {
+      trPlayHornBlast([233, 311, 466, 580], [0.45, 0.30, 0.20, 0.12], 0.32, 0);
+      trPlayHornBlast([233, 311, 466, 580], [0.45, 0.30, 0.20, 0.12], 0.32, 0.42);
+    }
   } catch(e) {}
 }
+
 
 function trTimerTick() {
   // Calcula o tempo decorrido a partir do relógio real (Date.now()), não a contar
@@ -11199,7 +11209,7 @@ function trTimerTick() {
     _trTimer.state = 'stopped';
     _trTimer.startedAt = null;
     trTimerReleaseWakeLock();
-    trTimerBuzzer();
+    trTimerBuzzer('end');
     trTimerUpdateUI();
     return;
   }
@@ -11230,7 +11240,7 @@ function trTimerPlay() {
     _trTimer.startedAt = Date.now() - (_trTimer.elapsed * 1000);
     _trTimer.interval = setInterval(trTimerTick, 1000);
     trTimerAcquireWakeLock();
-    if (arranqueNovo) trTimerBuzzer(); // apito também no início do jogo
+    if (arranqueNovo) trTimerBuzzer('start'); // apito também no início do jogo
   }
   trTimerUpdateUI();
 }
@@ -11254,7 +11264,7 @@ function trTimerPause() {
     _trTimer.startedAt = Date.now();
     _trTimer.interval = setInterval(trTimerTick, 1000);
     trTimerAcquireWakeLock();
-    trTimerBuzzer(); // apito também no início do intervalo
+    trTimerBuzzer('start'); // apito também no início do intervalo
   }
   trTimerUpdateUI();
 }
