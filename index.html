@@ -10598,9 +10598,18 @@ function trRenderClassTab() {
 
 // ── Ações / lógica ───────────────────────────────────────────
 function trGoTab(tabId) {
+  // Se ficarmos na mesma sub-aba (ex: depois de guardar um resultado em "Jogos"),
+  // preserva a posição do scroll — só um separador realmente novo deve ir para o topo.
+  const sameTab = trCurrentTab === tabId;
+  const mainElBefore = sameTab ? document.getElementById('main-content') : null;
+  const scrollTop = mainElBefore ? mainElBefore.scrollTop : 0;
   trCurrentTab = tabId;
   currentTab = 'torneios';
   render();
+  if (sameTab && scrollTop) {
+    const mainElAfter = document.getElementById('main-content');
+    if (mainElAfter) mainElAfter.scrollTop = scrollTop;
+  }
 }
 
 function trToggleNewForm() {
@@ -11041,7 +11050,33 @@ let _trTimer = {
   totalGame: 600,
   totalBreak: 120,
   audioCtx: null,  // contexto partilhado — criado no 1.º toque do utilizador
+  startedAt: null, // timestamp real (Date.now()) do início da contagem actual — imune a "engasgamentos" do setInterval em 2º plano
 };
+let _trWakeLock = null;
+
+// Pede ao browser para não deixar o ecrã apagar-se enquanto o temporizador
+// está a correr. Só funciona enquanto esta aba estiver em primeiro plano —
+// é libertado automaticamente pelo próprio browser quando ela é escondida.
+async function trTimerAcquireWakeLock() {
+  try {
+    if (!('wakeLock' in navigator)) return;
+    if (_trWakeLock) return;
+    _trWakeLock = await navigator.wakeLock.request('screen');
+    _trWakeLock.addEventListener('release', () => { _trWakeLock = null; });
+  } catch (e) { /* não suportado / recusado — a recuperação por tempo real abaixo cobre este caso */ }
+}
+function trTimerReleaseWakeLock() {
+  try { if (_trWakeLock) { _trWakeLock.release(); _trWakeLock = null; } } catch (e) {}
+}
+// Quando o ecrã volta a ficar visível (saiu do bloqueio/2º plano), o wake lock
+// já foi libertado pelo browser e o setInterval pode ter ficado "parado" —
+// recalcula o tempo decorrido a partir do relógio real e volta a pedir o wake lock.
+document.addEventListener('visibilitychange', () => {
+  if (!document.hidden && _trTimer.state === 'running') {
+    trTimerTick();
+    if (_trTimer.state === 'running') trTimerAcquireWakeLock();
+  }
+});
 
 function trTimerGetDurations() {
   const gMin = parseFloat(document.getElementById('tr-timer-match-dur')?.value) || 10;
@@ -11146,7 +11181,14 @@ function trTimerBuzzer() {
 }
 
 function trTimerTick() {
-  _trTimer.elapsed++;
+  // Calcula o tempo decorrido a partir do relógio real (Date.now()), não a contar
+  // "+1 por cada tick do setInterval" — isso é o que fazia o relógio "parar" quando
+  // o browser engasga/suspende o temporizador em 2º plano ou com o ecrã bloqueado.
+  if (_trTimer.startedAt) {
+    _trTimer.elapsed = Math.floor((Date.now() - _trTimer.startedAt) / 1000);
+  } else {
+    _trTimer.elapsed++;
+  }
   const dur = _trTimer.phase === 'game' ? _trTimer.totalGame : _trTimer.totalBreak;
 
   if (_trTimer.elapsed >= dur) {
@@ -11155,6 +11197,8 @@ function trTimerTick() {
     clearInterval(_trTimer.interval);
     _trTimer.interval = null;
     _trTimer.state = 'stopped';
+    _trTimer.startedAt = null;
+    trTimerReleaseWakeLock();
     trTimerBuzzer();
     trTimerUpdateUI();
     return;
@@ -11177,10 +11221,16 @@ function trTimerPlay() {
     clearInterval(_trTimer.interval);
     _trTimer.interval = null;
     _trTimer.state = 'paused';
+    _trTimer.startedAt = null;
+    trTimerReleaseWakeLock();
   } else {
+    const arranqueNovo = _trTimer.state === 'stopped'; // distingue "Iniciar" de "Continuar" (retomar de pausa)
+    if (arranqueNovo) _trTimer.phase = 'game'; // só reinicia a fase quando arranca do zero, não ao retomar de uma pausa
     _trTimer.state = 'running';
-    _trTimer.phase = 'game';
+    _trTimer.startedAt = Date.now() - (_trTimer.elapsed * 1000);
     _trTimer.interval = setInterval(trTimerTick, 1000);
+    trTimerAcquireWakeLock();
+    if (arranqueNovo) trTimerBuzzer(); // apito também no início do jogo
   }
   trTimerUpdateUI();
 }
@@ -11195,11 +11245,16 @@ function trTimerPause() {
     _trTimer.state = 'stopped';
     _trTimer.elapsed = 0;
     _trTimer.phase = 'game';
+    _trTimer.startedAt = null;
+    trTimerReleaseWakeLock();
   } else {
     _trTimer.phase = 'break';
     _trTimer.elapsed = 0;
     _trTimer.state = 'running';
+    _trTimer.startedAt = Date.now();
     _trTimer.interval = setInterval(trTimerTick, 1000);
+    trTimerAcquireWakeLock();
+    trTimerBuzzer(); // apito também no início do intervalo
   }
   trTimerUpdateUI();
 }
@@ -11210,6 +11265,8 @@ function trTimerReset() {
   _trTimer.state = 'stopped';
   _trTimer.phase = 'game';
   _trTimer.elapsed = 0;
+  _trTimer.startedAt = null;
+  trTimerReleaseWakeLock();
   const { game, brk } = trTimerGetDurations();
   _trTimer.totalGame  = game;
   _trTimer.totalBreak = brk;
