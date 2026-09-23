@@ -11251,7 +11251,7 @@ function trTimerBuzzer(kind) {
     if (_trTimer.audioCtx.state === 'suspended') _trTimer.audioCtx.resume();
 
     if (kind === 'start') {
-      trPlayHornBlast([700, 933], [0.4, 0.22], 0.28, 0);
+      trPlayHornBlast([700, 933], [0.4, 0.22], 1.0, 0);
     } else {
       trPlayBasketballBuzzer();
     }
