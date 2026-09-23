@@ -10415,6 +10415,10 @@ function trRenderJogosTab() {
       <button class="btn btn-primary" id="tr-timer-play" onclick="trTimerPlay()" style="width:100%;justify-content:center;font-size:14px;padding:11px;border-radius:10px">▶ Iniciar</button>
       <button class="btn" id="tr-timer-pause-btn" onclick="trTimerPause()" style="width:100%;justify-content:center;font-size:14px;padding:11px;border-radius:10px;background:rgba(217,119,6,0.2);color:#fbbf24;border-color:rgba(217,119,6,0.4)">⏸ Intervalo</button>
       <button class="btn btn-sm" onclick="trTimerReset()" style="width:100%;justify-content:center;border-radius:10px;background:rgba(255,255,255,0.07);color:rgba(255,255,255,0.5);border-color:rgba(255,255,255,0.12)">↺ Reiniciar</button>
+      <div style="display:flex;gap:6px;width:100%">
+        <button class="btn btn-sm" onclick="trTimerTestSound('start')" style="flex:1;justify-content:center;font-size:11px;padding:6px;border-radius:8px;background:rgba(255,255,255,0.07);color:rgba(255,255,255,0.6);border-color:rgba(255,255,255,0.12)">🔊 Testar início</button>
+        <button class="btn btn-sm" onclick="trTimerTestSound('end')" style="flex:1;justify-content:center;font-size:11px;padding:6px;border-radius:8px;background:rgba(255,255,255,0.07);color:rgba(255,255,255,0.6);border-color:rgba(255,255,255,0.12)">🔊 Testar fim</button>
+      </div>
     </div>
 
     <!-- Inputs duração -->
@@ -10463,6 +10467,11 @@ function trRenderJogosTab() {
         <!-- Barra de progresso -->
         <div style="width:100%;background:rgba(255,255,255,0.1);border-radius:99px;height:4px;overflow:hidden">
           <div id="tr-timer-progress" style="height:100%;width:0%;background:#22c55e;border-radius:99px;transition:width 0.9s linear,background 0.3s"></div>
+        </div>
+        <!-- Testar sons -->
+        <div style="display:flex;gap:6px;width:100%">
+          <button class="btn btn-sm" onclick="trTimerTestSound('start')" style="flex:1;justify-content:center;font-size:10px;padding:5px;border-radius:7px;background:rgba(255,255,255,0.07);color:rgba(255,255,255,0.6);border-color:rgba(255,255,255,0.12)">🔊 Testar início</button>
+          <button class="btn btn-sm" onclick="trTimerTestSound('end')" style="flex:1;justify-content:center;font-size:10px;padding:5px;border-radius:7px;background:rgba(255,255,255,0.07);color:rgba(255,255,255,0.6);border-color:rgba(255,255,255,0.12)">🔊 Testar fim</button>
         </div>
       </div>`;
 
@@ -11172,8 +11181,69 @@ function trPlayHornBlast(freqs, vols, dur, delay) {
   });
 }
 
+// Buzina aguda tipo "apito final" (referência: elevenlabs.io/pt/sound-effects/basketball-buzzer,
+// 2º exemplo "Buzina aguda apito final"): som eléctrico, agudo e sustido (~2s), com duas
+// frequências muito próximas (leve "batimento") mais uma camada de ruído agudo filtrado.
+function trPlayBasketballBuzzer() {
+  const ctx = _trTimer.audioCtx;
+  const t0 = ctx.currentTime;
+  const dur = 2.0;
+
+  const freqs = [830, 836];
+  const vols  = [0.42, 0.34];
+  freqs.forEach((freq, i) => {
+    const osc  = ctx.createOscillator();
+    const gain = ctx.createGain();
+    const dist = ctx.createWaveShaper();
+
+    const samples = 512;
+    const curve = new Float32Array(samples);
+    for (let j = 0; j < samples; j++) {
+      const x = (j * 2) / samples - 1;
+      curve[j] = (Math.PI + 250) * x / (Math.PI + 250 * Math.abs(x));
+    }
+    dist.curve = curve;
+
+    osc.type = 'sawtooth';
+    osc.frequency.setValueAtTime(freq, t0);
+
+    gain.gain.setValueAtTime(0, t0);
+    gain.gain.linearRampToValueAtTime(vols[i], t0 + 0.02); // ataque rápido
+    gain.gain.setValueAtTime(vols[i], t0 + dur - 0.1);
+    gain.gain.linearRampToValueAtTime(0, t0 + dur);        // corte seco no fim
+
+    osc.connect(dist);
+    dist.connect(gain);
+    gain.connect(ctx.destination);
+    osc.start(t0);
+    osc.stop(t0 + dur);
+  });
+
+  // Camada de ruído filtrado, agudo — dá a "aspereza" eléctrica sem soar grave
+  const bufSize = Math.floor(ctx.sampleRate * dur);
+  const noiseBuf = ctx.createBuffer(1, bufSize, ctx.sampleRate);
+  const data = noiseBuf.getChannelData(0);
+  for (let i = 0; i < bufSize; i++) data[i] = (Math.random() * 2 - 1) * 0.05;
+  const noise = ctx.createBufferSource();
+  noise.buffer = noiseBuf;
+  const noiseFilter = ctx.createBiquadFilter();
+  noiseFilter.type = 'bandpass';
+  noiseFilter.frequency.value = 2800;
+  noiseFilter.Q.value = 0.8;
+  const noiseGain = ctx.createGain();
+  noiseGain.gain.setValueAtTime(0, t0);
+  noiseGain.gain.linearRampToValueAtTime(0.13, t0 + 0.02);
+  noiseGain.gain.setValueAtTime(0.13, t0 + dur - 0.1);
+  noiseGain.gain.linearRampToValueAtTime(0, t0 + dur);
+  noise.connect(noiseFilter);
+  noiseFilter.connect(noiseGain);
+  noiseGain.connect(ctx.destination);
+  noise.start(t0);
+  noise.stop(t0 + dur);
+}
+
 // Apito de "início" — um único blast curto e agudo (soa a apito de arranque).
-// Apito de "fim" — dois blasts curtos e graves em sequência (soa a buzina de fim/final apito).
+// Apito de "fim" — buzina de basquetebol sustida (~2s).
 function trTimerBuzzer(kind) {
   try {
     // Reutilizar contexto existente (criado no gesto do utilizador) — obrigatório em mobile
@@ -11183,8 +11253,7 @@ function trTimerBuzzer(kind) {
     if (kind === 'start') {
       trPlayHornBlast([700, 933], [0.4, 0.22], 0.28, 0);
     } else {
-      trPlayHornBlast([233, 311, 466, 580], [0.45, 0.30, 0.20, 0.12], 0.32, 0);
-      trPlayHornBlast([233, 311, 466, 580], [0.45, 0.30, 0.20, 0.12], 0.32, 0.42);
+      trPlayBasketballBuzzer();
     }
   } catch(e) {}
 }
@@ -11215,6 +11284,17 @@ function trTimerTick() {
   }
 
   trTimerUpdateUI();
+}
+
+function trTimerTestSound(kind) {
+  // Mesmo desbloqueio de AudioContext que o "Iniciar" — obrigatório em mobile,
+  // tem de acontecer dentro do próprio gesto de toque do utilizador.
+  if (!_trTimer.audioCtx) {
+    _trTimer.audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+  } else if (_trTimer.audioCtx.state === 'suspended') {
+    _trTimer.audioCtx.resume();
+  }
+  trTimerBuzzer(kind);
 }
 
 function trTimerPlay() {
