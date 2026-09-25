@@ -2767,11 +2767,11 @@ function renderAvaliacaoSub(turma){
             const perc1s = calcPercAulasRealizadas(turma.id, nome, 1);
             const perc2s = calcPercAulasRealizadas(turma.id, nome, 2);
             return `
-            <td style="padding:5px 4px;border:1px solid var(--border);text-align:center;font-weight:700;font-size:13px;color:#1a2d4a;background:#e0f2fe">${perc1s}</td>
+            <td class="perc-aulas-cell" data-turma="${turma.id}" data-nome="${esc(nome)}" data-sem="1" style="padding:5px 4px;border:1px solid var(--border);text-align:center;font-weight:700;font-size:13px;color:#1a2d4a;background:#e0f2fe;cursor:pointer" title="Ver detalhe de assiduidade">${perc1s}</td>
             <td style="padding:5px 4px;border:1px solid var(--border);text-align:center;background:#fef9f0;font-weight:700;font-size:13px;color:#78350f">${r1||'—'}</td>
             <td style="padding:5px 4px;border:1px solid var(--border);text-align:center;background:#fef9f0;font-weight:700;font-size:13px;color:#78350f">${e1||'—'}</td>
             <td class="atit-classif1s-cell" style="padding:5px 4px;border:1px solid var(--border);text-align:center;font-weight:800;font-size:13px;color:#fff;background:#78350f">${classif1s}</td>
-            <td style="padding:5px 4px;border:1px solid var(--border);text-align:center;font-weight:700;font-size:13px;color:#1a2d4a;background:#e0f2fe">${perc2s}</td>
+            <td class="perc-aulas-cell" data-turma="${turma.id}" data-nome="${esc(nome)}" data-sem="2" style="padding:5px 4px;border:1px solid var(--border);text-align:center;font-weight:700;font-size:13px;color:#1a2d4a;background:#e0f2fe;cursor:pointer" title="Ver detalhe de assiduidade">${perc2s}</td>
             <td style="padding:3px 2px;border:1px solid var(--border);text-align:center;background:#fef3c7">
               <select class="atit-responsab2s" data-nome="${esc(nome)}"
                 style="width:54px;text-align:center;border:1px solid #fbbf24;border-radius:4px;padding:3px 2px;font-size:11px;font-weight:600;background:transparent;color:#6b2d0a;cursor:pointer">
@@ -2788,7 +2788,7 @@ function renderAvaliacaoSub(turma){
             <td class="atit-final-cell" style="padding:5px 4px;border:1px solid var(--border);text-align:center;font-weight:800;font-size:13px;color:#fff;background:#431407">${atitFinal}</td>`;
           } else {
             return `
-            <td style="padding:5px 4px;border:1px solid var(--border);text-align:center;font-weight:700;font-size:13px;color:#1a2d4a;background:#e0f2fe">${percAulas}</td>
+            <td class="perc-aulas-cell" data-turma="${turma.id}" data-nome="${esc(nome)}" data-sem="1" style="padding:5px 4px;border:1px solid var(--border);text-align:center;font-weight:700;font-size:13px;color:#1a2d4a;background:#e0f2fe;cursor:pointer" title="Ver detalhe de assiduidade">${percAulas}</td>
             <td style="padding:3px 2px;border:1px solid var(--border);text-align:center;background:#f0fdf4">
               <select class="atit-responsab" data-nome="${esc(nome)}"
                 style="width:58px;text-align:center;border:1px solid #86efac;border-radius:4px;padding:3px 2px;font-size:11px;font-weight:600;background:transparent;color:#14532d;cursor:pointer">
@@ -4187,6 +4187,76 @@ function exportAvaliacaoExcel(turma, semestre){
 }
 
 // Calcula % de aulas realizadas (sem FP) por aluno, num semestre específico (1 ou 2)
+// Detalhe de assiduidade de um aluno num semestre: aulas dadas, assistidas
+// e contagem de cada tipo de falta (FP/FA/FM/FD/DP) — para o popup que se
+// abre ao clicar na % de Aulas Realizadas, na grelha de Avaliação.
+function getResumoFaltasAluno(turmaId, nomeAluno, semestre){
+  let totalAulas=0, assistidas=0;
+  const porTipo={fp:0,fa:0,fm:0,fd:0,dp:0};
+  const semNorm=String(semestre)==='2'||String(semestre)==='sem2'?2:1;
+  const fimTurma=getFimAnoTurma(turmaId);
+  const inicioTurma=getInicioAnoTurma(turmaId);
+  Object.entries(S.sumarios).forEach(([sumKey, sum])=>{
+    if(sum.turmaId!=turmaId || !sum.sumario) return;
+    const sumSem=String(sum.semestre||'1');
+    const sumSemNorm=sumSem==='sem2'||sumSem==='2'?2:1;
+    if(sumSemNorm!==semNorm) return;
+    const dt=sumKey.split('_')[0];
+    if(dt&&(dt>fimTurma||dt<inicioTurma)) return;
+    totalAulas++;
+    const falta=S.faltas[sumKey]?.[nomeAluno];
+    if(!falta) assistidas++;
+    else if(porTipo[falta]!==undefined) porTipo[falta]++;
+  });
+  return {totalAulas, assistidas, porTipo};
+}
+
+function renderDetalheFaltasModal(){
+  const {turmaId, nome, semestre}=modal;
+  const turma=S.turmas.find(t=>t.id==turmaId);
+  const r=getResumoFaltasAluno(turmaId, nome, semestre);
+  const pct=r.totalAulas? Math.round((r.assistidas/r.totalAulas)*100) : 0;
+  const linhas=[
+    ['FP','Falta de Presença', r.porTipo.fp, '#dc2626'],
+    ['FA','Atraso', r.porTipo.fa, '#d97706'],
+    ['FM','Falta de Material', r.porTipo.fm, '#2563eb'],
+    ['FD','Falta Disciplinar', r.porTipo.fd, '#7c3aed'],
+    ['DP','Dispensa da Prática', r.porTipo.dp, '#16a34a'],
+  ];
+  return `<div class="modal-overlay" id="modalOverlay"><div class="modal" style="max-width:420px">
+    <div class="modal-title">📊 Assiduidade — ${esc(nome)}</div>
+    <div style="font-size:12px;color:var(--gray);margin-bottom:12px">${esc(turma?.nome||'')} · ${String(semestre)==='2'?'2º':'1º'} Semestre</div>
+    <div style="display:flex;gap:10px;margin-bottom:14px">
+      <div style="flex:1;text-align:center;padding:10px 6px;background:#f0f2f5;border-radius:10px">
+        <div style="font-size:22px;font-weight:800;color:var(--navy)">${r.totalAulas}</div>
+        <div style="font-size:11px;color:var(--gray)">Aulas dadas</div>
+      </div>
+      <div style="flex:1;text-align:center;padding:10px 6px;background:#e0f2fe;border-radius:10px">
+        <div style="font-size:22px;font-weight:800;color:#0369a1">${r.assistidas}</div>
+        <div style="font-size:11px;color:var(--gray)">Assistidas</div>
+      </div>
+      <div style="flex:1;text-align:center;padding:10px 6px;background:#fff1f2;border-radius:10px">
+        <div style="font-size:22px;font-weight:800;color:#e11d48">${pct}%</div>
+        <div style="font-size:11px;color:var(--gray)">Assiduidade</div>
+      </div>
+    </div>
+    <table style="width:100%;border-collapse:collapse;font-size:13px">
+      <thead><tr style="background:var(--navy)">
+        <th style="text-align:left;padding:6px 8px;color:#fff;border:1px solid rgba(255,255,255,0.15)">Tipo de falta</th>
+        <th style="text-align:center;padding:6px 8px;color:#fff;border:1px solid rgba(255,255,255,0.15);width:60px">Nº</th>
+      </tr></thead>
+      <tbody>
+        ${linhas.map(([sig,label,n,cor])=>`<tr>
+          <td style="padding:6px 8px;border:1px solid var(--border)"><span style="display:inline-block;width:9px;height:9px;border-radius:50%;background:${cor};margin-right:7px"></span><b>${sig}</b> — ${label}</td>
+          <td style="padding:6px 8px;border:1px solid var(--border);text-align:center;font-weight:700;${n>0?`color:${cor}`:'color:#cbd5e1'}">${n}</td>
+        </tr>`).join('')}
+      </tbody>
+    </table>
+    <div class="modal-actions"><button class="btn" id="cancelModal">Fechar</button></div>
+  </div></div>`;
+}
+
+
 function calcPercAulasRealizadas(turmaId, nomeAluno, semestre){
   let totalAulas=0, aulasPresente=0;
   const semNorm=String(semestre)==='2'||String(semestre)==='sem2'?2:1;
@@ -6150,6 +6220,7 @@ function renderGrelhaObsModalAtletismo(turma, sub, col, titulo, dados){
 function renderModal(){
   if(!modal) return '';
   if(modal.type==='grelhaObs') return renderGrelhaObsModal();
+  if(modal.type==='detalheFaltas') return renderDetalheFaltasModal();
   if(modal.type==='relatorioAluno') return renderRelatorioAlunoModal();
   if(modal.type==='editAula'){
     const aula=S.horario[modal.slot]||{};
@@ -6823,6 +6894,12 @@ function attachEvents(){
   });
 
   // Avaliação
+  document.querySelectorAll('.perc-aulas-cell').forEach(el=>{
+    el.addEventListener('click',()=>{
+      modal={type:'detalheFaltas', turmaId:parseInt(el.dataset.turma), nome:el.dataset.nome, semestre:el.dataset.sem};
+      render();
+    });
+  });
   const filterAvalTurmaS=document.getElementById('filterAvalTurmaS');
   if(filterAvalTurmaS) filterAvalTurmaS.addEventListener('change',e=>{
     filterAvaliacaoTurma=e.target.value;
