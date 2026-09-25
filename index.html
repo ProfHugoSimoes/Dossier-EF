@@ -121,6 +121,7 @@
   .falta-fa{background:#fef3c7;border-color:#fcd34d;color:#92400e}
   .falta-fm{background:#dbeafe;border-color:#93c5fd;color:#1e3a8a}
   .falta-fd{background:#ede9fe;border-color:#c4b5fd;color:#4c1d95}
+  .falta-dp{background:#dcfce7;border-color:#86efac;color:#166534}
   .faltas-resumo{font-size:11px;color:var(--gray);margin-top:6px}
   .faltas-legenda{display:flex;gap:10px;flex-wrap:wrap;margin-bottom:10px;font-size:11px}
   .legenda-item{display:flex;align-items:center;gap:4px}
@@ -835,8 +836,8 @@ const ESPACOS=['G1','E1','G2','E2'];
 const DIAS=['Segunda','Terça','Quarta','Quinta','Sexta'];
 const BLOCOS=['08h20–09h10','09h20–10h10','10h30–11h20','11h30–12h20','12h30–13h20','13h30–14h20','14h30–15h20','15h30–16h20','16h40–17h30','17h40–18h30'];
 const ANOS_ESC=['7º','8º','9º','10º','11º','12º'];
-const FALTA_TIPOS=['fp','fa','fm','fd'];
-const FALTA_LABELS={fp:'FP',fa:'FA',fm:'FM',fd:'FD'};
+const FALTA_TIPOS=['fp','fa','fm','fd','dp'];
+const FALTA_LABELS={fp:'FP',fa:'FA',fm:'FM',fd:'FD',dp:'DP'};
 
 // ── Algoritmo de Páscoa (Meeus/Jones/Butcher) ──────────────────────────────
 function calcPascoa(year){
@@ -4746,6 +4747,7 @@ function renderSumarios(){
         <span class="legenda-item"><span class="legenda-dot" style="background:#d97706"></span><strong>FA</strong> Atraso</span>
         <span class="legenda-item"><span class="legenda-dot" style="background:#2563eb"></span><strong>FM</strong> Material</span>
         <span class="legenda-item"><span class="legenda-dot" style="background:#7c3aed"></span><strong>FD</strong> Disciplinar</span>
+        <span class="legenda-item"><span class="legenda-dot" style="background:#16a34a"></span><strong>DP</strong> Dispensa da Prática</span>
         <span style="color:var(--gray);font-size:11px">— Clique no nome do aluno para ciclar os tipos de falta</span>
       </div>
     </div>
@@ -4803,6 +4805,7 @@ function renderSumariosTodasTurmas(turmasOpts){
         <span class="legenda-item"><span class="legenda-dot" style="background:#d97706"></span><strong>FA</strong> Atraso</span>
         <span class="legenda-item"><span class="legenda-dot" style="background:#2563eb"></span><strong>FM</strong> Material</span>
         <span class="legenda-item"><span class="legenda-dot" style="background:#7c3aed"></span><strong>FD</strong> Disciplinar</span>
+        <span class="legenda-item"><span class="legenda-dot" style="background:#16a34a"></span><strong>DP</strong> Dispensa da Prática</span>
         <span style="color:var(--gray);font-size:11px">— Clique no nome do aluno para ciclar os tipos de falta</span>
       </div>
     </div>
