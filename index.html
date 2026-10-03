@@ -1148,6 +1148,8 @@ function renderAvaliacao(){
   if(!S.avaliacao) S.avaliacao={};
   const is3p=getNumPeriodos()===3;
   const lbl1=is3p?'1ºP':'1ºS'; const lbl2=is3p?'2ºP':'2ºS';
+  const turmaParaSubs=S.turmas.find(t=>t.id==filterAvaliacaoTurma);
+  const showHistorico=['10º','11º','12º'].includes(turmaParaSubs?.ano);
   const subPastas=[
     {id:'fitescola',icon:'🏃',label:'FITESCOLA - AID'},
     {id:'fitescola1s',icon:'🏃',label:`FITESCOLA ${lbl1}`},
@@ -1158,12 +1160,11 @@ function renderAvaliacao(){
     {id:'sem2',icon:'📗',label:is3p?'2º PERÍODO':'2º SEMESTRE'},
     ...(is3p?[{id:'sem3',icon:'📕',label:'3º PERÍODO'}]:[]),
     {id:'sem1am',icon:'📙',label:'ALUNOS A.M.'},
+    ...(showHistorico?[{id:'historico',icon:'🏅',label:'HISTÓRICO EF'}]:[]),
     {id:'fichaaa',icon:'📝',label:'FICHA AA'},
   ];
 
   const mob=isMobile();
-  const subPastasMain=subPastas.filter(s=>s.id!=='fichaaa');
-  const subPastaFichaAA=subPastas.find(s=>s.id==='fichaaa');
   const btnHtml=mob
     ? '<div style="display:grid;grid-template-columns:repeat(3,1fr);gap:6px;width:100%">'
       + subPastas.map((s,idx)=>{
@@ -1184,19 +1185,19 @@ function renderAvaliacao(){
         }).join('')
       +'</div>'
     : (()=>{
-        // Desktop: botões principais com altura uniforme + FICHA AA à direita com altura dupla
-        const aActive=filterAvaliacaoSub==='fichaaa';
-        const mainBtns=subPastasMain.map(s=>{
+        // Desktop: todos os botões (incluindo Ficha AA) com o mesmo tamanho compacto,
+        // numa única linha, para caberem no ecrã mesmo com muitos separadores.
+        const allBtns=subPastas.map(s=>{
           const active=filterAvaliacaoSub===s.id;
-          return '<button class="aval-sub-btn" data-sub="'+s.id+'" style="flex:1;display:flex;align-items:center;justify-content:center;gap:8px;padding:0 12px;height:44px;border-radius:8px;font-size:13px;font-weight:600;cursor:pointer;border:2px solid '+(active?'var(--blue)':'var(--border)')+';background:'+(active?'var(--blue)':'#fff')+';color:'+(active?'#fff':'var(--navy)')+';transition:all 0.15s;white-space:nowrap"><span style="font-size:18px">'+s.icon+'</span>'+s.label+'</button>';
+          const isFichaAA=s.id==='fichaaa';
+          const bgActive=isFichaAA?'#7c3aed':'var(--blue)';
+          const borderActive=isFichaAA?'#7c3aed':'var(--blue)';
+          const bgNormal=isFichaAA?'#f5f3ff':'#fff';
+          const borderNormal=isFichaAA?'#c4b5fd':'var(--border)';
+          const colorNormal=isFichaAA?'#6d28d9':'var(--navy)';
+          return '<button class="aval-sub-btn" data-sub="'+s.id+'" style="flex:1;min-width:0;display:flex;align-items:center;justify-content:center;gap:5px;padding:0 6px;height:34px;border-radius:7px;font-size:11px;font-weight:'+(isFichaAA?'700':'600')+';cursor:pointer;border:2px solid '+(active?borderActive:borderNormal)+';background:'+(active?bgActive:bgNormal)+';color:'+(active?'#fff':colorNormal)+';transition:all 0.15s;white-space:nowrap;overflow:hidden"><span style="font-size:13px;flex-shrink:0">'+s.icon+'</span><span style="overflow:hidden;text-overflow:ellipsis">'+s.label+'</span></button>';
         }).join('');
-        const fichaBtn=subPastaFichaAA
-          ?'<button class="aval-sub-btn" data-sub="fichaaa" style="display:flex;flex-direction:column;align-items:center;justify-content:center;gap:6px;padding:0 20px;width:120px;flex-shrink:0;align-self:stretch;border-radius:8px;font-size:13px;font-weight:700;cursor:pointer;border:2px solid '+(aActive?'#7c3aed':'#c4b5fd')+';background:'+(aActive?'#7c3aed':'#f5f3ff')+';color:'+(aActive?'#fff':'#6d28d9')+';transition:all 0.15s"><span style="font-size:22px">'+subPastaFichaAA.icon+'</span>'+subPastaFichaAA.label+'</button>'
-          :'';
-        return '<div style="display:flex;align-items:stretch;gap:8px;width:100%">'
-          +'<div style="flex:1;display:flex;align-items:center;gap:8px;">'+mainBtns+'</div>'
-          +(fichaBtn?'<div style="width:1px;background:var(--border);flex-shrink:0"></div>'+fichaBtn:'')
-          +'</div>';
+        return '<div style="display:flex;align-items:stretch;gap:5px;width:100%">'+allBtns+'</div>';
       })();
 
   // 1º SEMESTRE A.M. é generalista — não precisa de turma selecionada
@@ -1224,33 +1225,47 @@ function renderAvaliacao(){
       +'</div>';
   }
 
+  // HISTÓRICO EF — notas finais do 10º/11º/12º, importadas de anos anteriores quando possível
+  if(filterAvaliacaoSub==='historico'){
+    const turmaH=S.turmas.find(t=>t.id==filterAvaliacaoTurma);
+    const turmasOptsH='<option value="">Selecionar turma...</option>'+S.turmas.map(t=>'<option value="'+t.id+'"'+(filterAvaliacaoTurma==t.id?' selected':'')+'>'+esc(t.nome)+'</option>').join('');
+    return '<div>'
+      +'<div style="position:sticky;top:0;z-index:50;background:#f0f2f5;padding-bottom:10px;margin-bottom:0;overflow:visible">'
+      +'<div class="filter-bar" style="padding-top:4px"><div class="section-title" style="margin:0">Avaliação</div>'
+      +'<select class="filter-select" id="filterAvalTurmaS" style="min-width:180px">'+turmasOptsH+'</select></div>'
+      +'<div style="padding-bottom:10px;border-bottom:1px solid var(--border);overflow:visible">'+btnHtml+'</div>'
+      +'</div>'
+      +(turmaH
+        ? (['10º','11º','12º'].includes(turmaH.ano)
+            ? renderHistoricoEF(turmaH)
+            : '<div class="empty-msg">Esta grelha só está disponível para turmas do secundário (10º, 11º ou 12º ano).</div>')
+        : '<div class="empty-msg">Seleciona uma turma.</div>')
+      +'</div>';
+  }
+
   const turma=S.turmas.find(t=>t.id==filterAvaliacaoTurma);
   const turmasOpts='<option value="">Selecionar turma...</option>'+S.turmas.map(t=>'<option value="'+t.id+'"'+(filterAvaliacaoTurma==t.id?' selected':'')+'>'+esc(t.nome)+'</option>').join('');
   if(!S.turmas.length) return '<div><div class="section-title">Avaliação</div><div class="empty-msg">Crie pelo menos uma turma no Painel para registar avaliações.</div></div>';
 
   const subHtml=turma?renderAvaliacaoSub(turma):'';
 
-  // No desktop, separar o botão Ficha AA para o colocar em altura dupla
-  const aActiveFinal=filterAvaliacaoSub==='fichaaa';
-  const fichaBtnFinal=!mob&&subPastaFichaAA
-    ?'<div style="width:1px;background:var(--border);flex-shrink:0;align-self:stretch"></div>'
-     +'<button class="aval-sub-btn" data-sub="fichaaa" style="display:flex;flex-direction:column;align-items:center;justify-content:center;gap:6px;padding:0 20px;width:120px;flex-shrink:0;align-self:stretch;border-radius:8px;font-size:13px;font-weight:700;cursor:pointer;border:2px solid '+(aActiveFinal?'#7c3aed':'#c4b5fd')+';background:'+(aActiveFinal?'#7c3aed':'#f5f3ff')+';color:'+(aActiveFinal?'#fff':'#6d28d9')+';transition:all 0.15s"><span style="font-size:22px">'+subPastaFichaAA.icon+'</span>'+subPastaFichaAA.label+'</button>'
-    :'';
-
   if(!mob){
-    // Desktop: wrapper único com flex — esquerda: 2 linhas (select + botões); direita: Ficha AA com altura total
-    const mainBtnsFinal=subPastasMain.map(s=>{
+    // Desktop: todos os botões (incluindo Ficha AA) com o mesmo tamanho compacto, numa única linha
+    const allBtnsFinal=subPastas.map(s=>{
       const active=filterAvaliacaoSub===s.id;
-      return '<button class="aval-sub-btn" data-sub="'+s.id+'" style="flex:1;display:flex;align-items:center;justify-content:center;gap:8px;padding:0 12px;height:44px;border-radius:8px;font-size:13px;font-weight:600;cursor:pointer;border:2px solid '+(active?'var(--blue)':'var(--border)')+';background:'+(active?'var(--blue)':'#fff')+';color:'+(active?'#fff':'var(--navy)')+';transition:all 0.15s;white-space:nowrap"><span style="font-size:18px">'+s.icon+'</span>'+s.label+'</button>';
+      const isFichaAA=s.id==='fichaaa';
+      const bgActive=isFichaAA?'#7c3aed':'var(--blue)';
+      const borderActive=isFichaAA?'#7c3aed':'var(--blue)';
+      const bgNormal=isFichaAA?'#f5f3ff':'#fff';
+      const borderNormal=isFichaAA?'#c4b5fd':'var(--border)';
+      const colorNormal=isFichaAA?'#6d28d9':'var(--navy)';
+      return '<button class="aval-sub-btn" data-sub="'+s.id+'" style="flex:1;min-width:0;display:flex;align-items:center;justify-content:center;gap:5px;padding:0 6px;height:34px;border-radius:7px;font-size:11px;font-weight:'+(isFichaAA?'700':'600')+';cursor:pointer;border:2px solid '+(active?borderActive:borderNormal)+';background:'+(active?bgActive:bgNormal)+';color:'+(active?'#fff':colorNormal)+';transition:all 0.15s;white-space:nowrap;overflow:hidden"><span style="font-size:13px;flex-shrink:0">'+s.icon+'</span><span style="overflow:hidden;text-overflow:ellipsis">'+s.label+'</span></button>';
     }).join('');
     const stickyDesktop='<div style="position:sticky;top:0;z-index:50;background:#f0f2f5;padding-bottom:10px;margin-bottom:0;overflow:visible">'
-      +'<div style="display:flex;align-items:stretch;gap:8px;padding-top:4px">'
-      +'<div style="flex:1;display:flex;flex-direction:column;gap:8px">'
+      +'<div style="display:flex;flex-direction:column;gap:8px;padding-top:4px">'
       +'<div style="display:flex;align-items:center;gap:12px"><div class="section-title" style="margin:0">Avaliação</div>'
       +'<select class="filter-select" id="filterAvalTurmaS" style="min-width:180px">'+turmasOpts+'</select></div>'
-      +(turma?('<div style="display:flex;align-items:center;gap:8px;padding-bottom:10px;border-bottom:1px solid var(--border)">'+mainBtnsFinal+'</div>'):'')
-      +'</div>'
-      +fichaBtnFinal
+      +(turma?('<div style="display:flex;align-items:stretch;gap:5px;padding-bottom:10px;border-bottom:1px solid var(--border)">'+allBtnsFinal+'</div>'):'')
       +'</div>'
       +'</div>';
     return '<div>'+stickyDesktop+subHtml+'</div>';
@@ -2841,10 +2856,21 @@ function renderAvaliacaoSub(turma){
         </td>
         <td style="padding:0;border:none;background:#f0f2f5"></td>
         <td style="padding:3px 2px;border:2px solid rgba(225,29,72,0.4);text-align:center;background:#ffe4e6">${(()=>{
-          // No 2º semestre, importar o valor do 1º semestre (só leitura)
+          // Campo partilhado entre 1º e 2º semestre (vive sempre no "balde" do 1º semestre).
+          // Pré-preenchido por importação automática da "Classificação Final" do 2º Semestre
+          // do ano letivo anterior, sempre que o ano de escolaridade anterior for conhecido;
+          // continua totalmente editável para corrigir ou preencher à mão.
+          if(!_historicoAnosCache && !_historicoAnosLoading) carregarHistoricoAnosAnteriores();
           const sem1Key=`${turma.id}__sem1`;
-          const valAno=S.avaliacao?.[sem1Key]?.avalEfAnoAnterior?.[nome]??'';
-          return `<span style="font-size:22px;font-weight:900;color:#be123c">${valAno!==''?valAno:'—'}</span>`;
+          const sem1D=S.avaliacao?.[sem1Key]||{};
+          const guardado=sem1D.avalEfAnoAnterior?.[nome];
+          const anoAnteriorLabel=getAnoAnteriorLabel(turma.ano);
+          const imp=anoAnteriorLabel?buscarNotaHistoricaImportada(anoAnteriorLabel,nome):null;
+          const val=(guardado!==undefined&&guardado!=='')?guardado:(imp?.nota??'');
+          const fonte=(guardado===undefined||guardado==='')?imp?.anoLetivo:null;
+          return `<input type="number" min="0" max="20" step="0.5" class="aval-ef-ano-anterior-input" data-turma="${turma.id}" data-nome="${esc(nome)}" value="${esc(String(val))}" placeholder="—"
+            title="${fonte?('Importado do ano letivo '+esc(fonte)):'Podes editar ou preencher à mão'}"
+            style="width:62px;text-align:center;border:none;background:transparent;font-size:22px;font-weight:900;color:#be123c;outline:none;padding:2px 0">`;
         })()}
         </td>
       </tr>`;
@@ -4187,6 +4213,142 @@ function exportAvaliacaoExcel(turma, semestre){
 }
 
 // Calcula % de aulas realizadas (sem FP) por aluno, num semestre específico (1 ou 2)
+// ── Histórico EF (importa notas finais do 2º Semestre de anos letivos
+// anteriores, para turmas de secundário) ────────────────────────────────
+let _historicoAnosCache=null;   // null = ainda não carregado; {ano:[{nome,nota,anoLetivo}]} depois de carregado
+let _historicoAnosLoading=false;
+
+function normalizarNomeHist(n){
+  return (n||'').normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerCase().trim().replace(/\s+/g,' ');
+}
+// Compara dois nomes exigindo que o PRIMEIRO e o ÚLTIMO nome coincidam exactamente
+// (tolera nomes do meio diferentes/omitidos) — nunca basta partilhar só um apelido
+// ou só um primeiro nome, isso já causou falsos positivos entre alunos diferentes
+// (ex: dois "Santos" de turmas distintas a serem tratados como o mesmo aluno).
+function similaridadeNomesHist(a,b){
+  const na=normalizarNomeHist(a).split(' ').filter(Boolean);
+  const nb=normalizarNomeHist(b).split(' ').filter(Boolean);
+  if(na.length<2||nb.length<2) return 0; // exigir pelo menos 2 palavras de cada lado (nome + apelido)
+  const primeiroIgual = na[0]===nb[0];
+  const ultimoIgual = na[na.length-1]===nb[nb.length-1];
+  return (primeiroIgual && ultimoIgual) ? 1 : 0;
+}
+
+// Dado o ano de escolaridade actual de uma turma, devolve a etiqueta do ano
+// anterior (ex: '11º' → '10º'), assumindo progressão normal de um ano por ano.
+function getAnoAnteriorLabel(anoAtual){
+  const idx=ANOS_ESC.indexOf(anoAtual);
+  return idx>0 ? ANOS_ESC[idx-1] : null;
+}
+
+async function carregarHistoricoAnosAnteriores(){
+  if(_historicoAnosCache||_historicoAnosLoading||!currentUser) return;
+  _historicoAnosLoading=true;
+  try{
+    const {data,error}=await supa.from('dossier_data').select('ano_letivo,dados').eq('user_id',currentUser.id);
+    if(error) throw error;
+    const porAno={};
+    (data||[]).forEach(row=>{
+      // Nunca importar do ano letivo actualmente em curso: a "Classificação Final"
+      // do 2º Semestre só é uma nota histórica válida quando esse ano já terminou.
+      // Enquanto o ano estiver a decorrer, o campo pode já ter sido tocado (testes,
+      // rascunho) sem isso significar que o semestre está de facto concluído.
+      if(String(row.ano_letivo||'').trim()===String(S.anoLetivo||'').trim()) return;
+      const s=row.dados||{};
+      const turmasRow=s.turmas||[];
+      const avaliacaoRow=s.avaliacao||{};
+      turmasRow.forEach(t=>{
+        if(!ANOS_ESC.includes(t.ano)) return;
+        const notas2=avaliacaoRow[`${t.id}__sem2`]?.classifFinalSem||{};
+        (t.alunos||[]).forEach(a=>{
+          const nome=typeof a==='string'?a:a.nome;
+          const nota=notas2[nome];
+          if(!nome||nota===undefined||nota==='') return;
+          if(!porAno[t.ano]) porAno[t.ano]=[];
+          porAno[t.ano].push({nome, nota:parseFloat(nota), anoLetivo:row.ano_letivo});
+        });
+      });
+    });
+    _historicoAnosCache=porAno;
+  }catch(e){
+    console.error('Erro ao carregar histórico de anos anteriores:', e);
+    _historicoAnosCache={};
+  }
+  _historicoAnosLoading=false;
+  render();
+}
+
+function buscarNotaHistoricaImportada(anoAlvo, nomeAlvo){
+  const lista=(_historicoAnosCache&&_historicoAnosCache[anoAlvo])||[];
+  let melhor=null, melhorScore=0;
+  lista.forEach(item=>{
+    const score=similaridadeNomesHist(item.nome, nomeAlvo);
+    if(score>melhorScore){ melhorScore=score; melhor=item; }
+  });
+  return (melhor&&melhorScore===1) ? melhor : null;
+}
+
+function calcMediaHistorico(n10,n11,n12){
+  const vals=[n10,n11,n12].map(v=>v===''||v===null||v===undefined?null:parseFloat(v)).filter(v=>v!==null&&!isNaN(v));
+  if(!vals.length) return '';
+  return Math.round((vals.reduce((a,b)=>a+b,0)/vals.length)*10)/10;
+}
+
+function renderHistoricoEF(turma){
+  if(!_historicoAnosCache && !_historicoAnosLoading) carregarHistoricoAnosAnteriores();
+  if(!S.historicoEF) S.historicoEF={};
+  const override=S.historicoEF[turma.id]||{};
+  const carregando=_historicoAnosLoading||!_historicoAnosCache;
+
+  const inputHtml=(nome,campo,val,fonte)=>`<input type="number" min="0" max="20" step="0.5" class="historico-nota" data-turma="${turma.id}" data-nome="${esc(nome)}" data-campo="${campo}" value="${esc(String(val))}" placeholder="—"
+      title="${fonte?('Importado do ano letivo '+esc(fonte)):'Introduzido manualmente'}"
+      style="width:60px;text-align:center;border:1px solid var(--border);border-radius:4px;padding:4px 2px;font-size:12px;font-weight:600;background:transparent;color:var(--navy);outline:none">`;
+
+  const rows=(turma.alunos||[]).map((a,i)=>{
+    const nome=typeof a==='string'?a:a.nome;
+    const ov=override[nome]||{};
+    const imp10 = buscarNotaHistoricaImportada('10º', nome);
+    const imp11 = buscarNotaHistoricaImportada('11º', nome);
+    const imp12 = buscarNotaHistoricaImportada('12º', nome);
+    const val10 = ov.n10!==undefined ? ov.n10 : (imp10?.nota??'');
+    const val11 = ov.n11!==undefined ? ov.n11 : (imp11?.nota??'');
+    const val12 = ov.n12!==undefined ? ov.n12 : (imp12?.nota??'');
+    const media = calcMediaHistorico(val10,val11,val12);
+    return `<tr>
+      <td style="padding:5px 6px;border:1px solid var(--border);text-align:center;color:var(--gray);font-size:12px">${i+1}</td>
+      <td style="padding:5px 8px;border:1px solid var(--border);font-weight:600">${esc(nome)}</td>
+      <td style="padding:4px 6px;border:1px solid var(--border);text-align:center;background:#fafbfc">${inputHtml(nome,'n10',val10, ov.n10===undefined?imp10?.anoLetivo:null)}</td>
+      <td style="padding:4px 6px;border:1px solid var(--border);text-align:center;background:#fafbfc">${inputHtml(nome,'n11',val11, ov.n11===undefined?imp11?.anoLetivo:null)}</td>
+      <td style="padding:4px 6px;border:1px solid var(--border);text-align:center;background:#fafbfc">${inputHtml(nome,'n12',val12, ov.n12===undefined?imp12?.anoLetivo:null)}</td>
+      <td class="historico-media-cell" style="padding:5px 6px;border:1px solid var(--border);text-align:center;font-weight:800;color:#fff;background:var(--navy)">${media}</td>
+    </tr>`;
+  }).join('');
+
+  return `<div>
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;flex-wrap:wrap;gap:8px">
+      <div style="font-size:12px;color:var(--gray);max-width:640px">
+        🏅 Notas finais (2º Semestre) do 10º, 11º e 12º ano — importadas automaticamente de anos letivos anteriores quando encontradas (por nome e apelido); podes sempre corrigir ou preencher à mão, por exemplo quando só tiveste o aluno num desses anos.
+        ${carregando?' <span style="color:var(--blue);font-weight:600">A importar histórico…</span>':''}
+      </div>
+      <button class="btn btn-sm" id="reimportarHistoricoBtn" title="Voltar a procurar notas importáveis (não apaga o que já editaste à mão)">🔄 Reimportar</button>
+    </div>
+    <div style="overflow:auto;border:1px solid var(--border);border-radius:8px">
+      <table style="width:100%;border-collapse:collapse;font-size:13px">
+        <thead><tr style="background:var(--navy)">
+          <th style="padding:6px;color:#fff;border:1px solid rgba(255,255,255,0.15);width:36px">#</th>
+          <th style="padding:6px 8px;text-align:left;color:#fff;border:1px solid rgba(255,255,255,0.15)">Nome</th>
+          <th style="padding:6px;color:#fff;border:1px solid rgba(255,255,255,0.15);width:80px">10º Ano</th>
+          <th style="padding:6px;color:#fff;border:1px solid rgba(255,255,255,0.15);width:80px">11º Ano</th>
+          <th style="padding:6px;color:#fff;border:1px solid rgba(255,255,255,0.15);width:80px">12º Ano</th>
+          <th style="padding:6px;color:#fff;border:1px solid rgba(255,255,255,0.15);width:80px">Média</th>
+        </tr></thead>
+        <tbody>${rows||`<tr><td colspan="6" style="padding:16px;text-align:center;color:var(--gray)">Sem alunos nesta turma.</td></tr>`}</tbody>
+      </table>
+    </div>
+  </div>`;
+}
+
+
 // Detalhe de assiduidade de um aluno num semestre: aulas dadas, assistidas
 // e contagem de cada tipo de falta (FP/FA/FM/FD/DP) — para o popup que se
 // abre ao clicar na % de Aulas Realizadas, na grelha de Avaliação.
@@ -4541,6 +4703,27 @@ function getAulasPlaneadasModalidade(turmaId, modalidade, semestre){
   return n;
 }
 
+// Conta aulas EFETIVAMENTE SUMARIADAS (com sumário preenchido e modalidade do
+// sumário definida) de uma turma e modalidade, no semestre/período indicado.
+function getAulasSumariadasModalidade(turmaId, modalidade, semestre){
+  semestre=semestre||'all';
+  const fimTurma=getFimAnoTurma(turmaId);
+  const inicioTurma=getInicioAnoTurma(turmaId);
+  let n=0;
+  Object.entries(S.sumarios||{}).forEach(([sumKey,s])=>{
+    if(!s.sumario||!s.modalidadeSumario||s.modalidadeSumario!==modalidade||s.turmaId!=turmaId) return;
+    const dt=sumKey.split('_')[0];
+    if(dt&&(dt>fimTurma||dt<inicioTurma)) return;
+    if(semestre!=='all'){
+      const semStr=String(s.semestre||'1');
+      const semNorm=(semStr==='sem2'||semStr==='2')?2:(semStr==='sem3'||semStr==='3')?3:1;
+      if(semNorm!==parseInt(semestre)) return;
+    }
+    n++;
+  });
+  return n;
+}
+
 // Total previsto (Previsão Anual Geral) para uma turma e modalidade,
 // somando os três grupos de espaço (E1+E2, G1, G2).
 // semestre: 'all' (soma todos) | '1' | '2' | '3'
@@ -4569,29 +4752,30 @@ function renderContadorAulasPainel(){
   const semestres=is3p?[['1','1º Período'],['2','2º Período'],['3','3º Período']]:[['1','1º Semestre'],['2','2º Semestre']];
   const isMulti=turmasAlvo.length>1;
 
-  function celula(planeadas,previsto,bg){
+  function celula(previsto,planeada,sumariada,bg){
     const bgCss=bg?`;background:${bg}`:'';
-    if(!planeadas&&!previsto) return `<td style="text-align:center;padding:5px 6px;border:1px solid var(--border);color:#cbd5e1${bgCss}">—</td>`;
-    const over=previsto>0&&planeadas>previsto;
-    const semPrevisto=previsto===0&&planeadas>0;
-    const cor=over?'var(--red)':semPrevisto?'var(--amber)':'var(--green)';
-    return `<td style="text-align:center;padding:5px 6px;border:1px solid var(--border);font-weight:700;color:${cor}${bgCss}">${planeadas}${previsto?'/'+previsto:''}</td>`;
+    const over=previsto>0&&(planeada>previsto||sumariada>previsto);
+    const semPrevisto=previsto===0&&(planeada>0||sumariada>0);
+    const temAlgo=previsto||planeada||sumariada;
+    const cor=over?'var(--red)':semPrevisto?'var(--amber)':temAlgo?'var(--green)':'#cbd5e1';
+    return `<td style="text-align:center;padding:5px 3px;border:1px solid var(--border);font-weight:700;font-size:11px;color:${cor}${bgCss}">${previsto} / ${planeada} / ${sumariada}</td>`;
   }
 
-  // Dados de um semestre/período, para todas as turmas alvo
+  // Dados de um semestre/período, para todas as turmas alvo — mostra sempre TODAS as modalidades
   function dadosSemestre(sem){
     const dadosPorTurma=turmasAlvo.map(t=>{
       const mods=todasMods.map(m=>({
         m,
-        planeadas:getAulasPlaneadasModalidade(t.id,m,sem),
-        previsto:getPrevistoAnualModalidade(t.id,m,sem)
-      })).filter(r=>r.planeadas>0||r.previsto>0);
-      const totPlaneadas=mods.reduce((s,r)=>s+r.planeadas,0);
+        previsto:getPrevistoAnualModalidade(t.id,m,sem),
+        planeada:getAulasPlaneadasModalidade(t.id,m,sem),
+        sumariada:getAulasSumariadasModalidade(t.id,m,sem)
+      }));
       const totPrevisto=mods.reduce((s,r)=>s+r.previsto,0);
-      return {turma:t, mods, totPlaneadas, totPrevisto};
+      const totPlaneada=mods.reduce((s,r)=>s+r.planeada,0);
+      const totSumariada=mods.reduce((s,r)=>s+r.sumariada,0);
+      return {turma:t, mods, totPrevisto, totPlaneada, totSumariada};
     });
-    const modsUsadas=[...new Set(dadosPorTurma.flatMap(d=>d.mods.map(r=>r.m)))].sort((a,b)=>a.localeCompare(b,'pt'));
-    return {dadosPorTurma, modsUsadas};
+    return {dadosPorTurma, modsUsadas:todasMods};
   }
 
   function blocoSemestre(sem,label){
@@ -4602,16 +4786,16 @@ function renderContadorAulasPainel(){
       tabelaHtml=`<table style="width:100%;border-collapse:collapse;font-size:12px">
         <thead><tr style="background:var(--navy)">
           <th style="text-align:left;padding:6px 8px;color:#fff;border:1px solid rgba(255,255,255,0.15)">Modalidade</th>
-          <th style="text-align:center;padding:6px 8px;color:#fff;border:1px solid rgba(255,255,255,0.15);width:120px">Planeadas / Previsto</th>
+          <th style="text-align:center;padding:6px 8px;color:#fff;border:1px solid rgba(255,255,255,0.15);width:130px">Previsto / Planeada / Sumariada</th>
         </tr></thead>
         <tbody>
-          ${d.mods.length? d.mods.map(r=>`<tr>
+          ${d.mods.map(r=>`<tr>
             <td style="padding:5px 8px;border:1px solid var(--border)">${esc(r.m)}</td>
-            ${celula(r.planeadas,r.previsto)}
-          </tr>`).join('') : `<tr><td colspan="2" style="padding:14px;text-align:center;color:var(--gray)">Sem aulas planeadas nem previsão registada.</td></tr>`}
+            ${celula(r.previsto,r.planeada,r.sumariada)}
+          </tr>`).join('')}
           <tr style="background:#f0f4ff;font-weight:700">
             <td style="padding:6px 8px;border:1px solid var(--border)">Total</td>
-            ${celula(d.totPlaneadas,d.totPrevisto,'#f0f4ff')}
+            ${celula(d.totPrevisto,d.totPlaneada,d.totSumariada,'#f0f4ff')}
           </tr>
         </tbody>
       </table>`;
@@ -4619,18 +4803,18 @@ function renderContadorAulasPainel(){
       tabelaHtml=`<table style="width:100%;border-collapse:collapse;font-size:11px">
         <thead><tr style="background:var(--navy)">
           <th style="text-align:left;padding:6px 8px;color:#fff;position:sticky;left:0;top:0;background:var(--navy);z-index:3;border:1px solid rgba(255,255,255,0.15)">Turma</th>
-          ${modsUsadas.map(m=>`<th style="text-align:center;padding:6px 4px;color:#fff;position:sticky;top:0;background:var(--navy);z-index:2;border:1px solid rgba(255,255,255,0.15);min-width:60px">${esc(m)}</th>`).join('')}
+          ${modsUsadas.map(m=>`<th style="text-align:center;padding:6px 4px;color:#fff;position:sticky;top:0;background:var(--navy);z-index:2;border:1px solid rgba(255,255,255,0.15);min-width:72px">${esc(m)}</th>`).join('')}
           <th style="text-align:center;padding:6px 8px;color:#fff;position:sticky;top:0;right:0;background:var(--navy2);z-index:3;border:1px solid rgba(255,255,255,0.15)">Total</th>
         </tr></thead>
         <tbody>
-          ${dadosPorTurma.length? dadosPorTurma.map(d=>`<tr>
+          ${dadosPorTurma.map(d=>`<tr>
             <td style="padding:5px 8px;border:1px solid var(--border);font-weight:700;position:sticky;left:0;background:#fff">${esc(d.turma.nome)}</td>
             ${modsUsadas.map(m=>{
               const r=d.mods.find(x=>x.m===m);
-              return celula(r?r.planeadas:0, r?r.previsto:0);
+              return celula(r?r.previsto:0, r?r.planeada:0, r?r.sumariada:0);
             }).join('')}
-            ${celula(d.totPlaneadas,d.totPrevisto,'#f8fafc')}
-          </tr>`).join('') : `<tr><td colspan="${modsUsadas.length+2}" style="padding:14px;text-align:center;color:var(--gray)">Sem dados.</td></tr>`}
+            ${celula(d.totPrevisto,d.totPlaneada,d.totSumariada,'#f8fafc')}
+          </tr>`).join('')}
         </tbody>
       </table>`;
     }
@@ -4640,7 +4824,7 @@ function renderContadorAulasPainel(){
     </div>`;
   }
 
-  const legenda=`<p style="font-size:11px;color:var(--gray);margin-top:4px;margin-bottom:0">💡 Cada célula mostra <b>aulas planeadas / total previsto</b> nesse semestre (Previsão Anual Geral, soma dos espaços). Atualiza-se automaticamente ao gravar uma aula ou a Planificação. <span style="color:var(--red);font-weight:700">Vermelho</span> = já ultrapassou o previsto · <span style="color:var(--amber);font-weight:700">Laranja</span> = sem previsão registada. Só mostra modalidades com aulas planeadas ou previsão nesse período.</p>`;
+  const legenda=`<p style="font-size:11px;color:var(--gray);margin-top:4px;margin-bottom:0">💡 Cada célula mostra <b>Previsto / Planeada / Sumariada</b> nesse semestre: <b>Previsto</b> = Previsão Anual Geral da Planificação (soma dos espaços) · <b>Planeada</b> = aulas com essa modalidade atribuída no Plano Semanal · <b>Sumariada</b> = aulas efetivamente dadas, com sumário preenchido com essa modalidade. Mostra sempre todas as modalidades e atualiza-se automaticamente ao gravar uma aula, um sumário ou a Planificação. <span style="color:var(--red);font-weight:700">Vermelho</span> = já ultrapassou o previsto (planeada ou sumariada) · <span style="color:var(--amber);font-weight:700">Laranja</span> = há aulas planeadas/sumariadas sem previsão registada.</p>`;
 
   return `<div class="card" style="margin-bottom:12px">
     <div style="display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:10px">
@@ -4740,6 +4924,7 @@ function renderSemanal(){
           }
           const sumKey=dt?`${dt}_${slot}`:'';
           const temSum=S.sumarios[sumKey]?.sumario;
+          const modalidadeDada=S.sumarios[sumKey]?.modalidadeSumario||'';
           const weekKey=semana[0];
           const modalidadeSemana=(S.modalidadesSemana[weekKey]||{})[slot]||'';
           const wx = isCurrentWeek && dt && weatherCache[dt];
@@ -4751,7 +4936,7 @@ function renderSemanal(){
             <div class="aula-turma">${esc(turmaObj.nome)}</div>
             <div class="aula-espaco">${espacoRot||''}</div>
             <div class="aula-modal">${modalidadeSemana||'<span style="color:#ccc;font-style:italic">modalidade</span>'}</div>
-            ${temSum?`<div style="font-size:9px;color:var(--green);margin-top:2px">✓ Sum.</div>`:''}
+            ${temSum?`<div style="font-size:9px;margin-top:2px;line-height:1.3"><span style="color:var(--green)">✓ Sum.</span>${modalidadeDada?`<span style="color:${modalidadeDada!==modalidadeSemana?'#dc2626':'var(--gray)'};font-weight:${modalidadeDada!==modalidadeSemana?'700':'400'}" title="${modalidadeDada!==modalidadeSemana?'Diferente da modalidade planeada ('+esc(modalidadeSemana||'—')+')':'Igual à modalidade planeada'}"> · ${esc(modalidadeDada)}</span>`:''}</div>`:''}
           </div></td>`;
         }).join('')}
       </tr>`).join('')}</tbody>
@@ -6898,6 +7083,43 @@ function attachEvents(){
     el.addEventListener('click',()=>{
       modal={type:'detalheFaltas', turmaId:parseInt(el.dataset.turma), nome:el.dataset.nome, semestre:el.dataset.sem};
       render();
+    });
+  });
+  document.querySelectorAll('.aval-ef-ano-anterior-input').forEach(el=>{
+    el.addEventListener('change',()=>{
+      const turmaId=el.dataset.turma, nome=el.dataset.nome;
+      const val=el.value.trim();
+      const sem1Key=`${turmaId}__sem1`;
+      if(!S.avaliacao) S.avaliacao={};
+      if(!S.avaliacao[sem1Key]) S.avaliacao[sem1Key]={};
+      if(!S.avaliacao[sem1Key].avalEfAnoAnterior) S.avaliacao[sem1Key].avalEfAnoAnterior={};
+      S.avaliacao[sem1Key].avalEfAnoAnterior[nome]=val===''?'':parseFloat(val);
+      save();
+    });
+  });
+  const reimportarHistoricoBtn=document.getElementById('reimportarHistoricoBtn');
+  if(reimportarHistoricoBtn) reimportarHistoricoBtn.addEventListener('click',()=>{
+    _historicoAnosCache=null;
+    render();
+  });
+  document.querySelectorAll('.historico-nota').forEach(el=>{
+    el.addEventListener('change',()=>{
+      const turmaId=el.dataset.turma, nome=el.dataset.nome, campo=el.dataset.campo;
+      const val=el.value.trim();
+      if(!S.historicoEF) S.historicoEF={};
+      if(!S.historicoEF[turmaId]) S.historicoEF[turmaId]={};
+      if(!S.historicoEF[turmaId][nome]) S.historicoEF[turmaId][nome]={};
+      S.historicoEF[turmaId][nome][campo]=val===''?'':parseFloat(val);
+      // Atualizar a Média da mesma linha, sem re-render completo (mantém o foco/scroll)
+      const row=el.closest('tr');
+      if(row){
+        const vals={};
+        row.querySelectorAll('.historico-nota').forEach(inp=>{ vals[inp.dataset.campo]=inp.value.trim(); });
+        const media=calcMediaHistorico(vals.n10, vals.n11, vals.n12);
+        const mediaCell=row.querySelector('.historico-media-cell');
+        if(mediaCell) mediaCell.textContent=media;
+      }
+      save();
     });
   });
   const filterAvalTurmaS=document.getElementById('filterAvalTurmaS');
