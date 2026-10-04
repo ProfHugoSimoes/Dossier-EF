@@ -3470,6 +3470,83 @@ function renderAvisos(){
   </div>`;
 }
 
+// Calcula a "média estimada" (0-20) da Avaliação Inicial/Diagnóstica (AID) de
+// um aluno — mesma fórmula usada na própria grelha AID (Avaliação → AID):
+// Fitescola + critérios de modalidades (85%) + atitudes (15%). Devolve null
+// se ainda não há dados suficientes para calcular.
+function getAidNotaFinal(turma, alunoObj){
+  const nome=typeof alunoObj==='string'?alunoObj:alunoObj.nome;
+  const genero=(typeof alunoObj==='object'?alunoObj.genero||'':'').toUpperCase();
+  const dataNasc=typeof alunoObj==='object'?alunoObj.dataNasc||'':'';
+  const anoLetivoNum=parseInt((S.anoLetivo||'2025/26').split('/')[0]);
+  const idadeNum=calcIdade(dataNasc, anoLetivoNum);
+  const idadeClamp=idadeNum===null?null:Math.max(9,Math.min(18,idadeNum));
+
+  const fitDados=S.avaliacao[`${turma.id}__fitescola`]||{resultados:{}};
+  const resFit=fitDados.resultados?.[nome]||{};
+  const ref=(genero==='M'||genero==='F')?(FITESCOLA_TB[genero]?.[idadeClamp]||FITESCOLA_TB[genero]?.[15]||null):null;
+  let nPM=0,nOK=0,nAtl=0;
+  if(ref){
+    FITESCOLA_TESTES.forEach(tt=>{
+      const val=resFit[tt.id]??'';
+      const ev=fitEval(val,ref[tt.id],tt.higher,tt.id==='milha');
+      if(ev.badge==='pm') nPM++;
+      else if(ev.badge==='ok') nOK++;
+      else if(ev.badge==='atl') nAtl++;
+    });
+  }
+  const pontosFitAuto=Math.min(5, nAtl*1 + nOK*0.5);
+
+  const dados=S.avaliacao[`${turma.id}__aid`]||{};
+  const overr=dados.fitPontosOverride?.[nome];
+  const pontosFit=(overr!==undefined&&overr!=='')?parseFloat(overr):pontosFitAuto;
+
+  const aidCritCampos=['aidDomTecnico','aidDomTatico','aidCompromisso','aidAtletismo','aidRaquetes','aidGinastica'];
+  const aidCritVals=aidCritCampos.map(c=>dados[c]?.[nome]??'');
+  const NIVEL_TO_NUM={'Muito Bom':4,'Bom':3,'Suficiente':2,'Insuficiente':1};
+  const NUM_TO_NIVEL=(n)=>{
+    if(n>=3.5) return 'Muito Bom';
+    if(n>=2.5) return 'Bom';
+    if(n>=1.5) return 'Suficiente';
+    return 'Insuficiente';
+  };
+  const critPreenchidos=aidCritVals.filter(v=>v!==''&&NIVEL_TO_NUM[v]!==undefined);
+  const aidDesempenho=critPreenchidos.length
+    ? NUM_TO_NIVEL(critPreenchidos.reduce((s,v)=>s+NIVEL_TO_NUM[v],0)/critPreenchidos.length)
+    : '';
+
+  const aidResponsab=dados.aidResponsab?.[nome]??'';
+  const aidExigencia=dados.aidExigencia?.[nome]??'';
+  const atitFinalVal=(()=>{
+    const r=parseFloat(aidResponsab)||0;
+    const e=parseFloat(aidExigencia)||0;
+    return (r||e)?Math.round((r+e)*10)/10:'';
+  })();
+
+  const AID_ATIV_CONH_MAP_BY_ANO={
+    '7º': {'Muito Bom':6,  'Bom':4,   'Suficiente':2.5, 'Insuficiente':1.5},
+    '8º': {'Muito Bom':7,  'Bom':5,   'Suficiente':3.5, 'Insuficiente':2.5},
+    '9º': {'Muito Bom':8.5,'Bom':6.5, 'Suficiente':4.5, 'Insuficiente':2.5},
+    '10º':{'Muito Bom':9.5,'Bom':7.5, 'Suficiente':5,   'Insuficiente':2.5},
+    '11º':{'Muito Bom':9.5,'Bom':7.5, 'Suficiente':5,   'Insuficiente':2.5},
+    '12º':{'Muito Bom':10, 'Bom':8,   'Suficiente':5.5, 'Insuficiente':3},
+  };
+  const AID_ATIV_CONH_MAP=AID_ATIV_CONH_MAP_BY_ANO[turma.ano]||AID_ATIV_CONH_MAP_BY_ANO['10º'];
+  const aidAtivConhPontos=aidDesempenho!==''?(AID_ATIV_CONH_MAP[aidDesempenho]??''):'';
+  const aidTotalPontos=aidDesempenho!==''
+    ? Math.round(((pontosFit||0)+(aidAtivConhPontos||0))*100)/100
+    : '';
+  const aidClassFinal=aidTotalPontos!==''?calcClassFinal(aidTotalPontos, turma.ano, 'sem1'):'';
+  const aidNotaProfessor=dados.aidNotaProfessor?.[nome]??'';
+  const isBasico=['7º','8º','9º'].includes(turma.ano);
+  const notaProfParaMedia=isBasico
+    ? (aidNotaProfessor!==''?parseFloat(aidNotaProfessor):NaN)
+    : (aidClassFinal!==''?parseFloat(aidClassFinal):NaN);
+  const af=parseFloat(atitFinalVal)||0;
+  if(isNaN(notaProfParaMedia)||!af) return null;
+  return Math.round((notaProfParaMedia*0.85+af*0.15)*10)/10;
+}
+
 function calcSucessoTurma(t){
   const basico=['7º','8º','9º'].includes(t.ano);
   const nAlunos=t.alunos.length;
@@ -3491,8 +3568,7 @@ function calcSucessoTurma(t){
     }
   }
 
-  function calcSem(semKey){
-    const notas=t.alunos.map(a=>getNotaFinal(typeof a==='string'?a:a.nome, semKey)).filter(v=>v!==null&&!isNaN(v));
+  function calcNotasParaResumo(notas){
     const total=notas.length;
     if(!total) return null;
     const limiar=basico?3:10;
@@ -3514,13 +3590,23 @@ function calcSucessoTurma(t){
     return {taxaSucesso, qual, total};
   }
 
-  return {s1:calcSem('sem1'), s2:calcSem('sem2'), basico};
+  function calcSem(semKey){
+    const notas=t.alunos.map(a=>getNotaFinal(typeof a==='string'?a:a.nome, semKey)).filter(v=>v!==null&&!isNaN(v));
+    return calcNotasParaResumo(notas);
+  }
+
+  function calcAid(){
+    const notas=t.alunos.map(a=>getAidNotaFinal(t,a)).filter(v=>v!==null&&v!==undefined&&!isNaN(v));
+    return calcNotasParaResumo(notas);
+  }
+
+  return {aid:calcAid(), s1:calcSem('sem1'), s2:calcSem('sem2'), basico};
 }
 
 function renderSucessoTable(t){
   const dados=calcSucessoTurma(t);
   if(!dados) return '';
-  const {s1,s2,basico}=dados;
+  const {aid,s1,s2,basico}=dados;
   const limiarLabel=basico?'>=3':'>=10';
   const qualRows=basico
     ?[[5,'5'],[4,'4'],[3,'3'],[2,'2'],[1,'1']]
@@ -3542,29 +3628,33 @@ function renderSucessoTable(t){
         <tr>
           <th style="padding:3px 4px;background:var(--navy);color:#fff;text-align:left;border:1px solid rgba(255,255,255,0.15);font-weight:600"></th>
           <th style="padding:3px 4px;background:var(--navy);color:#fff;text-align:center;border:1px solid rgba(255,255,255,0.15);font-weight:600"></th>
-          <th style="padding:3px 4px;background:var(--navy);color:#60a5fa;text-align:center;border:1px solid rgba(255,255,255,0.15);font-weight:600">${lbl1}</th>
-          <th style="padding:3px 4px;background:var(--navy);color:#86efac;text-align:center;border:1px solid rgba(255,255,255,0.15);font-weight:600">${lbl2}</th>
-          ${is3p?`<th style="padding:3px 4px;background:var(--navy);color:#fcd34d;text-align:center;border:1px solid rgba(255,255,255,0.15);font-weight:600">${getLabelPeriodo(3)}</th>`:''}
+          <th style="padding:3px 4px;width:64px;background:var(--navy);color:#fca5a5;text-align:center;border:1px solid rgba(255,255,255,0.15);font-weight:600">AID</th>
+          <th style="padding:3px 4px;width:64px;background:var(--navy);color:#60a5fa;text-align:center;border:1px solid rgba(255,255,255,0.15);font-weight:600">${lbl1}</th>
+          <th style="padding:3px 4px;width:64px;background:var(--navy);color:#86efac;text-align:center;border:1px solid rgba(255,255,255,0.15);font-weight:600">${lbl2}</th>
+          ${is3p?`<th style="padding:3px 4px;width:64px;background:var(--navy);color:#fcd34d;text-align:center;border:1px solid rgba(255,255,255,0.15);font-weight:600">${getLabelPeriodo(3)}</th>`:''}
         </tr>
       </thead>
       <tbody>
         <tr>
           <td rowspan="2" style="padding:3px 4px;border:1px solid var(--border);font-weight:600;color:var(--navy);font-size:9px;vertical-align:middle">Taxa de<br>Sucesso</td>
           <td style="padding:3px 4px;border:1px solid var(--border);color:var(--gray);font-size:9px">% alunos ${limiarLabel}</td>
+          <td style="padding:3px 4px;border:1px solid var(--border);text-align:center;font-weight:700;color:#dc2626">${taxa(aid)}</td>
           <td style="padding:3px 4px;border:1px solid var(--border);text-align:center;font-weight:700;color:#1d4ed8">${taxa(s1)}</td>
           <td style="padding:3px 4px;border:1px solid var(--border);text-align:center;font-weight:700;color:#16a34a">${taxa(s2)}</td>
           ${is3p?`<td style="padding:3px 4px;border:1px solid var(--border);text-align:center;font-weight:700;color:#d97706">—</td>`:''}
         </tr>
         <tr>
           <td style="padding:2px 4px;border:1px solid var(--border);color:var(--gray);font-size:9px">com avaliação</td>
+          <td style="padding:2px 4px;border:1px solid var(--border);text-align:center;color:#64748b">${aid?aid.total:'—'}</td>
           <td style="padding:2px 4px;border:1px solid var(--border);text-align:center;color:#64748b">${s1?s1.total:'—'}</td>
           <td style="padding:2px 4px;border:1px solid var(--border);text-align:center;color:#64748b">${s2?s2.total:'—'}</td>
           ${is3p?`<td style="padding:2px 4px;border:1px solid var(--border);text-align:center;color:#64748b">—</td>`:''}
         </tr>
-        <tr><td colspan="${is3p?5:4}" style="padding:0;border:none;height:4px"></td></tr>
+        <tr><td colspan="${is3p?6:5}" style="padding:0;border:none;height:4px"></td></tr>
         <tr>
           <td rowspan="${qualRows.length}" style="padding:3px 4px;border:1px solid var(--border);font-weight:600;color:var(--navy);font-size:9px;vertical-align:middle">Qualidade<br>do Sucesso</td>
           <td style="padding:3px 4px;border:1px solid var(--border);color:var(--gray);font-size:9px">${qualRows[0][1]}</td>
+          <td style="padding:3px 4px;border:1px solid var(--border);text-align:center;font-weight:600">${pct(aid,qualRows[0][0])}</td>
           <td style="padding:3px 4px;border:1px solid var(--border);text-align:center;font-weight:600">${pct(s1,qualRows[0][0])}</td>
           <td style="padding:3px 4px;border:1px solid var(--border);text-align:center;font-weight:600">${pct(s2,qualRows[0][0])}</td>
           ${is3p?`<td style="padding:3px 4px;border:1px solid var(--border);text-align:center;font-weight:600">—</td>`:''}
@@ -3572,6 +3662,7 @@ function renderSucessoTable(t){
         ${qualRows.slice(1).map(([k,label])=>`
         <tr>
           <td style="padding:3px 4px;border:1px solid var(--border);color:var(--gray);font-size:9px">${label}</td>
+          <td style="padding:3px 4px;border:1px solid var(--border);text-align:center;font-weight:600">${pct(aid,k)}</td>
           <td style="padding:3px 4px;border:1px solid var(--border);text-align:center;font-weight:600">${pct(s1,k)}</td>
           <td style="padding:3px 4px;border:1px solid var(--border);text-align:center;font-weight:600">${pct(s2,k)}</td>
           ${is3p?`<td style="padding:3px 4px;border:1px solid var(--border);text-align:center;font-weight:600">—</td>`:''}
