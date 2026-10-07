@@ -17,14 +17,14 @@
 <link rel="apple-touch-icon" sizes="144x144" href="icons/icon-144x144.png">
 <link rel="apple-touch-icon" sizes="128x128" href="icons/icon-128x128.png">
 <link rel="preconnect" href="https://fonts.googleapis.com">
-<link href="https://fonts.googleapis.com/css2?family=Dancing+Script:wght@600&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Dancing+Script:wght@600&family=Manrope:wght@500;600;700;800&family=Oswald:wght@500;700&display=swap" rel="stylesheet">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script src="https://cdn.jsdelivr.net/npm/qrcode@1.5.3/build/qrcode.min.js"></script>
 <style>
   *{box-sizing:border-box;margin:0;padding:0}
-  body{font-family:'Segoe UI',system-ui,sans-serif;background:#f0f2f5;color:#1a2332;height:100vh;display:flex;flex-direction:column;overflow:hidden}
+  body{font-family:'Manrope','Segoe UI',system-ui,sans-serif;background:#f0f2f5;color:#1a2332;height:100vh;display:flex;flex-direction:column;overflow:hidden}
   :root{
     --navy:#1a2d4a;--navy2:#243757;--blue:#2563eb;--blue2:#1d4ed8;--sky:#e8f0fe;
     --green:#16a34a;--green2:#dcfce7;--red:#dc2626;--red2:#fee2e2;
@@ -34,7 +34,7 @@
   }
   .app{display:flex;flex-direction:column;height:100vh}
   .header{background:var(--navy);color:#fff;height:var(--header-h);display:flex;align-items:center;padding:0 20px;gap:16px;flex-shrink:0;border-bottom:1px solid rgba(255,255,255,0.1);position:sticky;top:0;z-index:100;box-shadow:0 2px 8px rgba(0,0,0,0.25)}
-  .header-logo{font-size:28px;font-weight:800;letter-spacing:-0.5px;color:#60a5fa;white-space:nowrap}
+  .header-logo{font-family:'Oswald',sans-serif;font-size:28px;font-weight:700;letter-spacing:0.6px;color:#60a5fa;white-space:nowrap}
   .school-name{background:transparent;border:none;border-bottom:1px solid rgba(255,255,255,0.3);color:#fff;font-size:13px;font-weight:500;padding:4px 8px;min-width:280px;outline:none}
   .school-name:focus{border-bottom-color:#60a5fa}
   .school-name::placeholder{color:rgba(255,255,255,0.5)}
@@ -42,7 +42,7 @@
   .prof-name:focus{border-bottom-color:#60a5fa}
   .prof-name::placeholder{color:rgba(255,255,255,0.3)}
   .header-right{margin-left:auto;display:flex;align-items:center;gap:12px}
-  .year-select{background:rgba(255,255,255,0.1);border:1px solid rgba(255,255,255,0.2);color:#fff;padding:6px 10px;border-radius:6px;font-size:13px;cursor:pointer;outline:none}
+  .year-select{background:rgba(255,255,255,0.1);border:1px solid rgba(255,255,255,0.2);color:#fff;padding:6px 10px;border-radius:6px;font-family:'Oswald',sans-serif;font-size:14px;font-weight:500;cursor:pointer;outline:none}
   .year-select option{background:#243757;color:#fff}
   .body{display:flex;flex:1;overflow:hidden}
   .sidebar{width:var(--sidebar-w);background:var(--navy2);display:flex;flex-direction:column;flex-shrink:0}
@@ -61,7 +61,7 @@
 
   /* Cards */
   .card{background:var(--card);border-radius:10px;border:1px solid var(--border);padding:16px;box-shadow:0 1px 3px rgba(0,0,0,0.06)}
-  .section-title{font-size:18px;font-weight:700;color:var(--navy);margin-bottom:16px}
+  .section-title{font-family:'Oswald',sans-serif;font-size:22px;font-weight:700;letter-spacing:0.4px;text-transform:uppercase;color:var(--navy);margin-bottom:16px}
   .grid-2{display:grid;grid-template-columns:1fr 1fr;gap:12px}
   .grid-4{display:grid;grid-template-columns:repeat(4,1fr);gap:12px}
   .turma-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:14px}
@@ -70,7 +70,7 @@
   .turma-card{background:var(--card);border:1px solid var(--border);border-radius:10px;overflow:hidden;box-shadow:0 1px 3px rgba(0,0,0,0.06);cursor:pointer;transition:box-shadow 0.15s}
   .turma-card:hover{box-shadow:0 4px 12px rgba(0,0,0,0.1)}
   .turma-header{background:var(--navy);color:#fff;padding:12px 14px;display:flex;align-items:center;justify-content:space-between}
-  .turma-nome{font-size:15px;font-weight:700}
+  .turma-nome{font-family:'Oswald',sans-serif;font-size:22px;font-weight:700;letter-spacing:0.4px;line-height:1}
   .turma-ano{font-size:11px;background:rgba(255,255,255,0.15);padding:2px 8px;border-radius:20px}
   .turma-body{padding:12px 14px}
   .turma-stat{display:flex;justify-content:space-between;align-items:center;padding:4px 0;font-size:12px;border-bottom:1px solid var(--border)}
@@ -150,7 +150,7 @@
   .aluno-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(140px,1fr));gap:8px}
   .aluno-stat-card{background:var(--gray2);border-radius:8px;padding:10px 12px;text-align:center}
   .aluno-stat-label{font-size:10px;color:var(--gray);font-weight:600;text-transform:uppercase;letter-spacing:0.4px;margin-bottom:2px}
-  .aluno-stat-val{font-size:18px;font-weight:800;color:var(--navy)}
+  .aluno-stat-val{font-family:'Oswald',sans-serif;font-size:22px;font-weight:700;color:var(--navy)}
 
   /* Configurações Modal */
   .cfg-modal-overlay{position:fixed;inset:0;background:rgba(0,0,0,0.45);z-index:900;display:flex;align-items:center;justify-content:center}
@@ -181,7 +181,7 @@
   /* Modal */
   .modal-overlay{position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,0.5);display:flex;align-items:center;justify-content:center;z-index:1000}
   .modal{background:#fff;border-radius:12px;padding:24px;width:420px;max-width:90vw;max-height:85vh;overflow-y:auto;box-shadow:0 20px 60px rgba(0,0,0,0.2)}
-  .modal-title{font-size:16px;font-weight:700;color:var(--navy);margin-bottom:16px;padding-bottom:12px;border-bottom:1px solid var(--border)}
+  .modal-title{font-family:'Oswald',sans-serif;font-size:18px;font-weight:700;letter-spacing:0.3px;text-transform:uppercase;color:var(--navy);margin-bottom:16px;padding-bottom:12px;border-bottom:1px solid var(--border)}
   .modal-field{margin-bottom:12px}
   .modal-field label{display:block;font-size:11px;font-weight:600;color:var(--gray);margin-bottom:4px;text-transform:uppercase;letter-spacing:0.4px}
   .modal-field select,.modal-field input,.modal-field textarea{width:100%;border:1px solid var(--border);border-radius:6px;padding:8px;font-size:13px;outline:none;font-family:inherit;transition:border 0.15s}
@@ -1060,7 +1060,7 @@ function renderHeader(){
     return `<div class="header" style="padding:0 10px;gap:0">
       ${mobileBack}
       <div style="flex:1;display:flex;align-items:center;overflow:hidden">
-        <div onclick="renderSplash()" title="Voltar ao ecrã inicial" style="flex:1;text-align:center;font-size:22px;font-weight:800;color:#60a5fa;letter-spacing:-0.5px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;cursor:pointer">DOSSIER EF</div>
+        <div onclick="renderSplash()" title="Voltar ao ecrã inicial" style="flex:1;text-align:center;font-family:'Oswald',sans-serif;font-size:24px;font-weight:700;color:#60a5fa;letter-spacing:0.5px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;cursor:pointer">DOSSIER EF</div>
         <div style="width:1px;height:24px;background:rgba(255,255,255,0.15);flex-shrink:0"></div>
         <div style="flex:1;text-align:center;font-size:17px;font-weight:700;color:#f0f2f5;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;padding:0 6px">${esc(S.professor||'')}</div>
       </div>
@@ -3380,7 +3380,7 @@ function renderPainel(){
       ].map(s=>`<div class="card" style="text-align:center;background:var(--gray2)">
         <div style="font-size:20px;margin-bottom:4px">${s.i}</div>
         <div style="font-size:11px;color:var(--gray);font-weight:600;text-transform:uppercase;letter-spacing:0.5px;margin-bottom:4px">${s.l}</div>
-        <div style="font-size:28px;font-weight:700;color:${s.c}">${s.v}</div>
+        <div style="font-family:'Oswald',sans-serif;font-size:36px;font-weight:700;line-height:1.1;color:${s.c}">${s.v}</div>
       </div>`).join('')}
     </div>
     ${modSection}
@@ -5296,27 +5296,27 @@ function renderCalendario(){
           ${!(S.pausasIntervalos&&S.pausasIntervalos.length)?'<div style="color:var(--gray);font-size:12px">Nenhuma pausa adicionada.</div>':''}
         </div>
       </div>
-      <div class="card cal-horario-card">
+      <div class="card cal-horario-card" style="${isMobile()?'':'position:sticky;top:0;height:calc(100vh - 160px);min-height:420px;display:flex;flex-direction:column'}">
         <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;flex-wrap:wrap;gap:8px">
           <div style="font-size:14px;font-weight:700;color:var(--navy)">🗓️ Horário Semanal Base</div>
           <button class="btn btn-sm" id="syncHorarioBtn" style="background:#dbeafe;color:#1e40af;border-color:#93c5fd;font-size:11px">🔄 Importar do Mapa 1</button>
         </div>
         <p style="font-size:11px;color:var(--gray);margin-bottom:12px">Gerado a partir do Mapa 1 dos Mapas de Rotação. Clica em 'Importar do Mapa 1' para atualizar.</p>
-        <div style="overflow-x:hidden">
-        <table class="horario-table" style="${isMobile()?'table-layout:fixed;width:100%':''}">
+        <div style="overflow-x:hidden;${isMobile()?'':'flex:1;min-height:0'}">
+        <table class="horario-table" style="${isMobile()?'table-layout:fixed;width:100%':'height:100%'}">
           <thead><tr><th style="${isMobile()?'width:30px':''}">${isMobile()?'H':'Hora'}</th>${DIAS.map(d=>`<th>${isMobile()?d.slice(0,3):d}</th>`).join('')}</tr></thead>
           <tbody>${BLOCOS.map((b,bi)=>{
             const ROT_SI_MAP=[0,1,2,3,4,6,7,8,9,10];
             const si=ROT_SI_MAP[bi];
             return `<tr>
-            <td style="font-size:${isMobile()?'7px':'10px'};white-space:${isMobile()?'normal':'nowrap'};background:var(--gray2);font-weight:600;color:var(--gray);padding:${isMobile()?'2px 1px':'4px 6px'};word-break:break-all;line-height:1.2">${isMobile()?b.slice(0,5):b}</td>
+            <td style="font-size:${isMobile()?'7px':'12px'};white-space:${isMobile()?'normal':'nowrap'};background:var(--gray2);font-weight:600;color:var(--gray);padding:${isMobile()?'2px 1px':'4px 6px'};word-break:break-all;line-height:1.2">${isMobile()?b.slice(0,5):b}</td>
             ${DIAS.map((d,di)=>{
               const slot=`${di}_${bi}`;
               const aula=S.horario[slot]||{};
               const turma=S.turmas.find(t=>t.id==aula.turmaId);
               const label=turma?turma.nome:'';
               const bg=label?'background:#eff6ff;':'';
-              return `<td style="padding:2px;${bg}text-align:center;font-size:${isMobile()?'7px':'11px'};color:var(--navy);font-weight:${label?'700':'400'};vertical-align:middle">${label||'<span style=\"color:var(--border)\">—</span>'}</td>`;
+              return `<td style="padding:2px;${bg}text-align:center;font-size:${isMobile()?'7px':'14px'};color:var(--navy);font-weight:${label?'700':'400'};vertical-align:middle">${label||'<span style=\"color:var(--border)\">—</span>'}</td>`;
             }).join('')}
           </tr>`;
           }).join('')}</tbody>
@@ -5748,7 +5748,7 @@ function renderPlanificacao(){
         ${cardItems.map(s=>`<div class="card" style="text-align:center;background:var(--gray2)">
           <div style="font-size:18px;margin-bottom:4px">${s.i}</div>
           <div style="font-size:11px;color:var(--gray);font-weight:600;text-transform:uppercase;letter-spacing:0.5px;margin-bottom:4px">${s.l}</div>
-          <div style="font-size:28px;font-weight:700;color:${s.c}">${s.v}</div>
+          <div style="font-family:'Oswald',sans-serif;font-size:36px;font-weight:700;line-height:1.1;color:${s.c}">${s.v}</div>
         </div>`).join('')}
       </div>
       <div style="overflow-x:auto">
