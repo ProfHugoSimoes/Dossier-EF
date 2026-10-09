@@ -637,6 +637,7 @@ async function initApp(){
   currentTab = isMobile() ? 'home' : 'painel';
   currentWeekOffset = calcCurrentWeekOffset();
   rotCurrentMap = currentWeekOffset % 4;
+  trLoad(); // migra torneios antigos (só no navegador) para os dados sincronizados
   render();
   checkExportReminder();
 }
@@ -10489,7 +10490,7 @@ function attachRotacaoEvents() {
 
 // ══════════════════════════════════════════════════════════════
 // TORNEIOS INTRATURMA — Estado e lógica completa
-// Dados guardados no localStorage (independente do Supabase)
+// Dados guardados em S.torneios (sincronizado com o Supabase → aparece em todos os dispositivos)
 // ══════════════════════════════════════════════════════════════
 let trState = {
   tournaments: [],
@@ -10498,16 +10499,49 @@ let trState = {
 let trCurrentTab = 'tab-torneos'; // sub-separador ativo dentro de Torneios
 
 function trLoad() {
+  // Fonte principal: S.torneios (vai para o Supabase com o resto dos dados).
+  // Migração única: torneios antigos que só existiam neste navegador (localStorage)
+  // são copiados para S e o original é arquivado (para não "ressuscitarem" se forem apagados).
+  let legacyRaw = null, legacy = [], legacyCur = null;
   try {
-    trState.tournaments = JSON.parse(localStorage.getItem('dossier_ef_tournaments') || '[]');
-    trState.currentId = localStorage.getItem('dossier_ef_current') || null;
-  } catch(e) { trState = { tournaments: [], currentId: null }; }
+    legacyRaw = localStorage.getItem('dossier_ef_tournaments');
+    legacy = JSON.parse(legacyRaw || '[]');
+    legacyCur = localStorage.getItem('dossier_ef_current') || null;
+  } catch (e) { legacy = []; }
+  if (typeof S !== 'undefined' && S) {
+    if (!Array.isArray(S.torneios)) S.torneios = [];
+    let migrado = false;
+    (Array.isArray(legacy) ? legacy : []).forEach(lt => {
+      if (lt && lt.id && !S.torneios.some(x => x.id === lt.id)) { S.torneios.push(lt); migrado = true; }
+    });
+    trState.tournaments = S.torneios;
+    trState.currentId = S.torneioAtualId || legacyCur || null;
+    if (migrado) {
+      if (!S.torneioAtualId && legacyCur) S.torneioAtualId = legacyCur;
+      try {
+        localStorage.setItem('dossier_ef_tournaments_backup', legacyRaw);
+        localStorage.removeItem('dossier_ef_tournaments');
+      } catch (e) {}
+      save();
+    } else if (legacyRaw && legacy.length === 0) {
+      try { localStorage.removeItem('dossier_ef_tournaments'); } catch (e) {}
+    }
+  } else {
+    trState.tournaments = Array.isArray(legacy) ? legacy : [];
+    trState.currentId = legacyCur;
+  }
 }
 function trSave() {
-  try {
-    localStorage.setItem('dossier_ef_tournaments', JSON.stringify(trState.tournaments));
-    if (trState.currentId) localStorage.setItem('dossier_ef_current', trState.currentId);
-  } catch(e) {}
+  if (typeof S !== 'undefined' && S) {
+    S.torneios = trState.tournaments;
+    S.torneioAtualId = trState.currentId || null;
+    save();
+  } else {
+    try {
+      localStorage.setItem('dossier_ef_tournaments', JSON.stringify(trState.tournaments));
+      if (trState.currentId) localStorage.setItem('dossier_ef_current', trState.currentId);
+    } catch (e) {}
+  }
 }
 function trCurrent() {
   return trState.tournaments.find(t => t.id === trState.currentId) || null;
