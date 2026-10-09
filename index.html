@@ -64,6 +64,9 @@
   .section-title{font-family:'Oswald',sans-serif;font-size:22px;font-weight:700;letter-spacing:0.4px;text-transform:uppercase;color:var(--navy);margin-bottom:16px}
   .grid-2{display:grid;grid-template-columns:1fr 1fr;gap:12px}
   .grid-4{display:grid;grid-template-columns:repeat(4,1fr);gap:12px}
+  .grid-5{display:grid;grid-template-columns:repeat(5,1fr);gap:12px}
+  .grid-5>*{min-width:0}
+  @media(max-width:600px){.grid-5{grid-template-columns:repeat(2,1fr)}.grid-5>:last-child{grid-column:span 2}}
   .turma-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:14px}
 
   /* Turma card */
@@ -3324,34 +3327,51 @@ function renderPainel(){
   const s1Total=Object.values(modsBySem).reduce((s,v)=>s+v.s1,0);
   const s2Total=Object.values(modsBySem).reduce((s,v)=>s+v.s2,0);
 
+  // Modalidades lecionadas: quadro GLOBAL + uma coluna-grupo por turma (1ºS / 2ºS / Total),
+  // sempre a partir dos sumários (campo "modalidade" de cada sumário).
+  const _turmasMod=S.turmas.map(t=>{
+    const c=getModalidadesCountsBySem(t.id);
+    const s1=Object.values(c).reduce((s,v)=>s+v.s1,0);
+    const s2=Object.values(c).reduce((s,v)=>s+v.s2,0);
+    return {t,c,s1,s2};
+  });
+  const _thSub=(label,n,bg,col)=>`<th style="background:${bg};color:${col};padding:4px 1px;font-size:9px;font-weight:700;text-align:center;border:1px solid var(--border);line-height:1.2">${label}<br><span style="font-weight:400;opacity:0.75">(${n} aula${n!==1?'s':''})</span></th>`;
+  const _thGroup=(nome,span)=>`<th colspan="${span}" style="background:var(--navy);color:#fff;padding:7px 6px;font-family:'Oswald',sans-serif;font-size:14px;font-weight:700;letter-spacing:0.4px;text-align:center;border:1px solid rgba(255,255,255,0.15)">${nome}</th>`;
+  const _tdNum=(n,col,bg)=>`<td style="padding:6px 1px;text-align:center;border:1px solid var(--border);font-size:12px;font-weight:${n>0?700:400};color:${n>0?col:'#cbd5e1'};background:${bg}">${n||'—'}</td>`;
+  const _subHeads=(a,b,bg1,bg2)=>`${_thSub('1º S',a,'#dbeafe','#1d4ed8')}${_thSub('2º S',b,'#dcfce7','#16a34a')}${_thSub('Total',a+b,'#e2e8f0','#334155')}`;
+
   const modSection=`
     <div class="card" style="margin-bottom:20px">
       <div style="font-size:14px;font-weight:700;color:var(--navy);margin-bottom:16px">📊 Modalidades Lecionadas</div>
       ${allMods.length===0?`<div style="font-size:12px;color:var(--gray);font-style:italic">Ainda sem modalidades planeadas no Plano Semanal.</div>`:`
-      <div style="display:grid;grid-template-columns:minmax(140px,1.5fr) 1fr 1fr;gap:0;border:1px solid var(--border);border-radius:8px;overflow:hidden">
-        <div style="background:#f8fafc;padding:8px 12px;font-size:11px;font-weight:700;color:var(--gray);text-transform:uppercase;border-bottom:1px solid var(--border)">Modalidade</div>
-        <div style="background:#dbeafe;padding:8px 12px;font-size:11px;font-weight:700;color:#1d4ed8;text-align:center;border-bottom:1px solid var(--border);border-left:1px solid var(--border)">1º Semestre <span style="font-weight:400;opacity:0.7">(${s1Total} aulas)</span></div>
-        <div style="background:#dcfce7;padding:8px 12px;font-size:11px;font-weight:700;color:#16a34a;text-align:center;border-bottom:1px solid var(--border);border-left:1px solid var(--border)">2º Semestre <span style="font-weight:400;opacity:0.7">(${s2Total} aulas)</span></div>
-        ${allMods.map((mod,i)=>{
-          const v=modsBySem[mod]||{s1:0,s2:0};
-          const bg=i%2===0?'#fff':'#f8fafc';
-          const pct1=s1Total>0?Math.round(v.s1/s1Total*100):0;
-          const pct2=s2Total>0?Math.round(v.s2/s2Total*100):0;
-          const barCell=(count,pct,color,colorBg)=>`
-            <div style="background:${colorBg};padding:8px 12px;border-left:1px solid var(--border);border-bottom:1px solid var(--border)">
-              <div style="display:flex;align-items:center;gap:8px">
-                <div style="flex:1;height:5px;background:#e2e8f0;border-radius:3px;overflow:hidden">
-                  <div style="height:100%;width:${pct}%;background:${color};border-radius:3px;transition:width 0.3s"></div>
-                </div>
-                <span style="font-size:12px;font-weight:700;color:${count>0?color:'#cbd5e1'};min-width:16px;text-align:right">${count||'—'}</span>
-              </div>
-              ${count>0?`<div style="font-size:10px;color:${color};opacity:0.75;margin-top:2px;text-align:right">${pct}%</div>`:''}
-            </div>`;
-          return `
-            <div style="background:${bg};padding:8px 12px;border-bottom:1px solid var(--border);font-size:12px;font-weight:600;color:var(--navy);display:flex;align-items:center">${esc(mod)}</div>
-            ${barCell(v.s1,pct1,'#2563eb','#f0f9ff')}
-            ${barCell(v.s2,pct2,'#16a34a','#f0fdf4')}`;
-        }).join('')}
+      <div style="overflow-x:auto;-webkit-overflow-scrolling:touch;border:1px solid var(--border);border-radius:8px">
+      <table style="border-collapse:collapse;width:100%;table-layout:fixed;min-width:${(_turmasMod.length+1)*3*42+140}px">
+        <colgroup><col style="width:125px">${'<col>'.repeat(3)}<col style="width:8px">${'<col>'.repeat(_turmasMod.length*3)}</colgroup>
+        <thead>
+          <tr>
+            <th rowspan="2" style="position:sticky;left:0;z-index:2;background:#f8fafc;padding:8px 10px;font-size:11px;font-weight:700;color:var(--gray);text-transform:uppercase;text-align:left;border:1px solid var(--border)">Modalidade</th>
+            ${_thGroup('GLOBAL',3)}
+            <th rowspan="2" style="width:8px;min-width:8px;padding:0;background:#f1f5f9;border:none"></th>
+            ${_turmasMod.map(x=>_thGroup(esc(x.t.nome),3)).join('')}
+          </tr>
+          <tr>
+            ${_subHeads(s1Total,s2Total)}
+            ${_turmasMod.map(x=>_subHeads(x.s1,x.s2)).join('')}
+          </tr>
+        </thead>
+        <tbody>
+          ${allMods.map((mod,i)=>{
+            const bg=i%2===0?'#fff':'#f8fafc';
+            const v=modsBySem[mod]||{s1:0,s2:0};
+            return `<tr>
+              <td style="position:sticky;left:0;z-index:1;background:${bg};padding:7px 10px;font-size:12px;font-weight:700;color:var(--navy);border:1px solid var(--border);line-height:1.2">${esc(mod)}</td>
+              ${_tdNum(v.s1,'#2563eb','#f0f9ff')}${_tdNum(v.s2,'#16a34a','#f0fdf4')}${_tdNum(v.s1+v.s2,'#334155','#f1f5f9')}
+              <td style="width:8px;min-width:8px;padding:0;background:#f1f5f9;border:none"></td>
+              ${_turmasMod.map(x=>{const t=x.c[mod]||{s1:0,s2:0};return `${_tdNum(t.s1,'#2563eb','#f0f9ff')}${_tdNum(t.s2,'#16a34a','#f0fdf4')}${_tdNum(t.s1+t.s2,'#334155','#f1f5f9')}`;}).join('')}
+            </tr>`;
+          }).join('')}
+        </tbody>
+      </table>
       </div>`}
     </div>`;
 
@@ -3371,12 +3391,13 @@ function renderPainel(){
       </button>
       </div>
     </div>
-    <div class="grid-4" style="margin-bottom:20px">
+    <div class="grid-5" style="margin-bottom:20px">
       ${[
         {l:'Turmas',v:totalTurmas,c:'var(--blue)',i:'🏫'},
         {l:'Alunos',v:totalAlunos,c:'var(--navy)',i:'👥'},
         {l:'Aulas Previstas',v:totalPrevistas,c:'var(--amber)',i:'📅'},
         {l:'Aulas Dadas',v:totalAulas,c:'var(--green)',i:'✅'},
+        {l:'Aulas por dar',v:Math.max(0,totalPrevistas-totalAulas),c:'var(--purple)',i:'⏳'},
       ].map(s=>`<div class="card" style="text-align:center;background:var(--gray2)">
         <div style="font-size:20px;margin-bottom:4px">${s.i}</div>
         <div style="font-size:11px;color:var(--gray);font-weight:600;text-transform:uppercase;letter-spacing:0.5px;margin-bottom:4px">${s.l}</div>
@@ -10640,7 +10661,7 @@ function trRenderEquipasTab() {
   const remaining = teamLimit > 0 && !atLimit ? `<div style="font-size:11px;color:var(--amber);font-weight:600;margin-bottom:8px">Faltam ${teamLimit-t.teams.length} equipa${teamLimit-t.teams.length!==1?'s':''} para completar.</div>` : '';
   const limitMsg = atLimit ? `<div style="background:var(--green2);border:1px solid rgba(22,163,74,0.2);border-radius:8px;padding:12px 16px;margin-bottom:12px;font-size:13px;font-weight:600;color:var(--green)">✅ Todas as ${teamLimit} equipas adicionadas.</div>` : '';
   const grid = t.teams.length
-    ? `<div class="tr-teams-grid">${t.teams.map((team,i)=>`<div class="tr-team-chip"><span style="width:10px;height:10px;border-radius:50%;background:${team.color};flex-shrink:0"></span><span class="name">${esc(team.name)}</span><button onclick="trRemoveTeam(${i})" title="Remover">✕</button></div>`).join('')}</div>`
+    ? `<div class="tr-teams-grid">${t.teams.map((team,i)=>`<div class="tr-team-chip"><input type="color" value="${team.color}" onchange="trSetTeamColor(${i},this.value)" title="Mudar cor" style="width:22px;height:22px;padding:0;border:none;border-radius:50%;background:none;cursor:pointer;flex-shrink:0"><input class="name" value="${esc(team.name)}" onchange="trRenameTeam(${i},this.value)" title="Clica para editar o nome" style="background:transparent;border:none;border-bottom:1px dashed var(--border);outline:none;min-width:0;width:100%;font-family:inherit"><button onclick="trRemoveTeam(${i})" title="Remover">✕</button></div>`).join('')}</div>`
     : '<p style="color:var(--gray);font-size:13px;margin-top:10px">Nenhuma equipa adicionada.</p>';
   return `<div>
     <div style="display:flex;align-items:center;gap:10px;margin-bottom:14px;flex-wrap:wrap">
@@ -10659,6 +10680,7 @@ function trRenderEquipasTab() {
     </div>`:''}
     <div class="tr-form-card">
       <h2>Equipas inscritas <span style="color:var(--gray);font-size:14px">(${t.teams.length}${teamLimit>0?'/'+teamLimit:''})</span></h2>
+      ${t.teams.length?'<div style="font-size:11px;color:var(--gray);margin-bottom:8px">✏️ Clica no nome para o editar · clica no círculo para mudar a cor</div>':''}
       ${grid}
       <div style="margin-top:14px;display:flex;gap:8px;flex-wrap:wrap">
         <button class="btn btn-primary" onclick="trGenerateMatches()" id="tr-gen-btn">⚡ Gerar jogos</button>
@@ -11111,14 +11133,16 @@ function trCreateTournament() {
   const dateStart = document.getElementById('tr-date-start')?.value || '';
   const dateEnd = document.getElementById('tr-date-end')?.value || '';
   if (dateStart && dateEnd && dateEnd < dateStart) { trNotify('⚠️ A data de fim não pode ser anterior à de início!'); return; }
-  const t = { id: Date.now().toString(), name, sport, cls, format, ptsWin, ptsDraw, numGroups, swissRounds, groupsNum, groupsQualify, numTeams, numFields, matchDuration, breakDuration, totalDuration, dateStart, dateEnd, teams: [], matches: [], created: new Date().toLocaleDateString('pt-PT') };
+  // Se o nº de equipas foi definido, as equipas são criadas já como 1, 2, 3, … (editáveis no separador Equipas)
+  const teamsAuto = numTeams > 0 ? Array.from({ length: numTeams }, (_, i) => ({ name: String(i + 1), color: TR_TEAM_COLORS[i % TR_TEAM_COLORS.length] })) : [];
+  const t = { id: Date.now().toString(), name, sport, cls, format, ptsWin, ptsDraw, numGroups, swissRounds, groupsNum, groupsQualify, numTeams, numFields, matchDuration, breakDuration, totalDuration, dateStart, dateEnd, teams: teamsAuto, matches: [], created: new Date().toLocaleDateString('pt-PT') };
   trState.tournaments.unshift(t);
   trState.currentId = t.id;
   trSave();
-  trCurrentTab = 'tab-torneos';
+  trCurrentTab = numTeams > 0 ? 'tab-equipas' : 'tab-torneos';
   currentTab = 'torneios';
   render();
-  trNotify('✅ Torneio criado!');
+  trNotify(numTeams > 0 ? '✅ Torneio criado com ' + numTeams + ' equipas (1, 2, 3…) — podes editar os nomes!' : '✅ Torneio criado!');
 }
 
 function trSelect(id) {
@@ -11152,6 +11176,29 @@ function trAddTeam() {
   currentTab = 'torneios';
   render();
   trNotify('✅ ' + name + ' adicionada!');
+}
+
+const TR_TEAM_COLORS = ['#2563eb','#dc2626','#16a34a','#d97706','#7c3aed','#0891b2','#db2777','#65a30d','#ea580c','#4f46e5','#0d9488','#be123c'];
+
+// Renomeia uma equipa (mantém os jogos e resultados: actualiza o nome nos jogos já gerados)
+function trRenameTeam(i, newName) {
+  const t = trCurrent();
+  if (!t || !t.teams[i]) return;
+  const novo = (newName || '').trim();
+  const antigo = t.teams[i].name;
+  if (!novo) { trNotify('⚠️ O nome da equipa não pode ficar vazio'); currentTab = 'torneios'; render(); return; }
+  if (novo === antigo) return;
+  if (t.teams.some((e, j) => j !== i && e.name.toLowerCase() === novo.toLowerCase())) { trNotify('⚠️ Já existe uma equipa com esse nome!'); currentTab = 'torneios'; render(); return; }
+  t.teams[i].name = novo;
+  (t.matches || []).forEach(m => { if (m.home === antigo) m.home = novo; if (m.away === antigo) m.away = novo; });
+  trSave();
+}
+
+function trSetTeamColor(i, color) {
+  const t = trCurrent();
+  if (!t || !t.teams[i]) return;
+  t.teams[i].color = color;
+  trSave();
 }
 
 function trRemoveTeam(i) {
