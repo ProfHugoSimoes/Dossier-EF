@@ -2570,10 +2570,10 @@ function renderAvaliacaoSub(turma){
     </tr>`:''}
     `
   :`<tr style="background:var(--navy)">
-      <th rowspan="4" style="padding:8px 6px;text-align:center;color:#fff;font-weight:600;border:1px solid rgba(255,255,255,0.15);width:32px;position:sticky;top:0;z-index:5;background:var(--navy)">#</th>
-      <th rowspan="4" style="padding:8px 10px;text-align:left;color:#fff;font-weight:600;border:1px solid rgba(255,255,255,0.15);min-width:100px;position:sticky;top:0;z-index:5;background:var(--navy)">Nome</th>
-      <th rowspan="4" style="padding:8px 6px;text-align:center;color:#fff;font-weight:600;border:1px solid rgba(255,255,255,0.15);width:50px;position:sticky;top:0;z-index:5;background:var(--navy)">Gén.</th>
-      <th rowspan="4" style="padding:8px 6px;text-align:center;color:#fff;font-weight:600;border:1px solid rgba(255,255,255,0.15);width:55px;position:sticky;top:0;z-index:5;background:var(--navy)">Idade</th>
+      <th rowspan="4" style="padding:8px 6px;text-align:center;color:#fff;font-weight:600;border:1px solid rgba(255,255,255,0.15);width:36px;min-width:36px;box-sizing:border-box;position:sticky;top:0;left:0;z-index:10;background:var(--navy)">#</th>
+      <th rowspan="4" style="padding:8px 10px;text-align:left;color:#fff;font-weight:600;border:1px solid rgba(255,255,255,0.15);width:120px;min-width:120px;box-sizing:border-box;position:sticky;top:0;left:36px;z-index:10;background:var(--navy)">Nome</th>
+      <th rowspan="4" style="padding:8px 6px;text-align:center;color:#fff;font-weight:600;border:1px solid rgba(255,255,255,0.15);width:44px;min-width:44px;box-sizing:border-box;position:sticky;top:0;left:156px;z-index:10;background:var(--navy)">Gén.</th>
+      <th rowspan="4" style="padding:8px 6px;text-align:center;color:#fff;font-weight:600;border:1px solid rgba(255,255,255,0.15);width:44px;min-width:44px;box-sizing:border-box;position:sticky;top:0;left:200px;z-index:10;background:var(--navy);box-shadow:3px 0 5px -1px rgba(0,0,0,0.25)">Idade</th>
       <th colspan="15" style="padding:8px 6px;text-align:center;color:#fff;font-weight:800;border:1px solid rgba(255,255,255,0.15);background:#7c2d12;letter-spacing:1px;font-size:12px;position:sticky;top:0;z-index:4">DOMÍNIO DOS CONHECIMENTOS E CAPACIDADES — 85%</th>
       <th colspan="3" style="padding:8px 6px;text-align:center;color:#fff;font-weight:800;border:1px solid rgba(255,255,255,0.15);background:#78350f;letter-spacing:1px;font-size:12px;position:sticky;top:0;z-index:4">ATITUDES E VALORES — 15%</th>
       <th rowspan="4" style="padding:8px 6px;text-align:center;color:#fff;font-weight:700;border:1px solid rgba(255,255,255,0.15);background:#0f4c3a;min-width:90px;font-size:11px;line-height:1.3;position:sticky;top:0;z-index:4">NOTA<br>ESTIMADA</th>
@@ -2954,10 +2954,10 @@ function renderAvaliacaoSub(turma){
       return '18 a 20';
     })();
     return `<tr style="background:${bg}" data-ano="${esc(turma.ano)}">
-      <td style="padding:5px 8px;border:1px solid var(--border);text-align:center;color:var(--gray);font-weight:600">${num}</td>
-      <td style="padding:5px 10px;border:1px solid var(--border);font-weight:500;color:var(--navy)"><a href="javascript:void(0)" class="aid-nome-link" data-turma="${turma.id}" data-nome="${esc(nome)}" style="color:#2563eb;text-decoration:underline;cursor:pointer" title="Ver relatório do aluno">${esc(nome)}</a></td>
-      <td style="padding:5px 6px;border:1px solid var(--border);text-align:center;font-weight:600;color:var(--navy)">${genLabel}</td>
-      <td style="padding:5px 6px;border:1px solid var(--border);text-align:center;font-weight:600;color:var(--navy)">${idade}</td>
+      <td style="width:36px;min-width:36px;box-sizing:border-box;padding:5px 4px;border:1px solid var(--border);text-align:center;color:var(--gray);font-weight:600;position:sticky;left:0;z-index:3;background:${bg}">${num}</td>
+      <td style="width:120px;min-width:120px;max-width:120px;box-sizing:border-box;padding:5px 8px;border:1px solid var(--border);font-weight:500;color:var(--navy);font-size:12px;line-height:1.2;position:sticky;left:36px;z-index:3;background:${bg}"><a href="javascript:void(0)" class="aid-nome-link" data-turma="${turma.id}" data-nome="${esc(nome)}" style="color:#2563eb;text-decoration:underline;cursor:pointer" title="Ver relatório do aluno">${esc(nome)}</a></td>
+      <td style="width:44px;min-width:44px;box-sizing:border-box;padding:5px 4px;border:1px solid var(--border);text-align:center;font-weight:600;color:var(--navy);position:sticky;left:156px;z-index:3;background:${bg}">${genLabel}</td>
+      <td style="width:44px;min-width:44px;box-sizing:border-box;padding:5px 4px;border:1px solid var(--border);text-align:center;font-weight:600;color:var(--navy);position:sticky;left:200px;z-index:3;background:${bg};box-shadow:3px 0 5px -1px rgba(0,0,0,0.15)">${idade}</td>
       <td style="padding:5px 8px;border:1px solid var(--border);text-align:center;font-weight:700;font-size:14px;color:#dc2626">${nPM||''}</td>
       <td style="padding:5px 8px;border:1px solid var(--border);text-align:center;font-weight:700;font-size:14px;color:#16a34a">${nOK||''}</td>
       <td style="padding:5px 8px;border:1px solid var(--border);text-align:center;font-weight:700;font-size:14px;color:#1d4ed8">${nAtl||''}</td>
