@@ -10252,9 +10252,11 @@ function rotExportPDF() {
           const bg       = isLocked ? '#fff3cd' : (pc ? pc.color : '');
           const tc       = isLocked ? '#7a4f00' : (pc ? pc.textColor : '#1a2332');
           const bgStyle  = bg ? `background:${bg};` : '';
+          // Turma em letra grande e a negrito, a ocupar quase toda a célula (ajusta pelo nº de caracteres)
+          const fsTurma = Math.max(8, Math.min(16, Math.floor(38 / (Math.max(String(val).length, 1) * 0.62))));
           html += val
-            ? `<td style="${TD_BASE}${bgStyle}color:${tc};font-size:7px;font-weight:500">${val}</td>`
-            : `<td style="${TD_BASE}color:#ccc;font-size:6px">—</td>`;
+            ? `<td style="${TD_BASE}padding:3px 1px;${bgStyle}color:${tc};font-size:${fsTurma}px;font-weight:800;line-height:1.15;white-space:nowrap;overflow:hidden">${val}</td>`
+            : `<td style="${TD_BASE}padding:3px 1px;color:#ccc;font-size:8px;line-height:1.15">—</td>`;
         });
       });
       html += '</tr>';
@@ -10638,6 +10640,7 @@ function trRenderListTab() {
           <option value="groups">Grupos + Eliminatórias</option>
           <option value="swiss">Modelo Suíço</option>
           <option value="double_elim">Dupla Eliminatória</option>
+          <option value="divisions">Liga Divisões (sobe/desce de campo)</option>
         </select>
       </div>
     </div>
@@ -10650,7 +10653,15 @@ function trRenderListTab() {
       <div><label class="tr-label">Nº de grupos</label><input class="tr-input" type="number" id="tr-groups-num" value="2" min="2" max="16" oninput="trCalcUpdate('teams')"></div>
       <div><label class="tr-label">Equipas que passam/grupo</label><input class="tr-input" type="number" id="tr-groups-qualify" value="2" min="1" max="8"></div>
     </div>
-    <div class="tr-form-row">
+    <div id="tr-div-box" style="display:none;margin-bottom:12px">
+      <div class="tr-form-row">
+        <div><label class="tr-label">Nº de rondas</label><input class="tr-input" type="number" id="tr-div-rounds" value="5" min="1" max="30" oninput="trCalcUpdate('teams')"></div>
+        <div style="font-size:11px;color:var(--gray);align-self:end;padding-bottom:10px;line-height:1.4">Nº de campos = nº de divisões = metade das equipas (4 equipas → 2 divisões, 6 → 3, 8 → 4…). Podes definir as equipas ou os campos — o outro ajusta-se. Quem ganha sobe de campo, quem perde desce. Sem empates.</div>
+      </div>
+      <label class="tr-label">Pontos por vitória em cada divisão</label>
+      <div id="tr-div-pts-box" style="display:flex;gap:10px;flex-wrap:wrap"></div>
+    </div>
+    <div class="tr-form-row" id="tr-pts-row">
       <div><label class="tr-label">Pontos vitória</label><input class="tr-input" type="number" id="tr-pts-win" value="3" min="1"></div>
       <div><label class="tr-label">Pontos empate</label><input class="tr-input" type="number" id="tr-pts-draw" value="1" min="0"></div>
     </div>
@@ -10681,7 +10692,7 @@ function trRenderListTab() {
         const done = t.matches.filter(m => m.played).length;
         const total = t.matches.length;
         const isCur = t.id === trState.currentId;
-        const fmtLabel = { league:'Liga', knockout:'Eliminatórias', groups:'Grupos+Elim.', swiss:'Suíço', double_elim:'Dupla Elim.' }[t.format] || t.format;
+        const fmtLabel = { league:'Liga', knockout:'Eliminatórias', groups:'Grupos+Elim.', swiss:'Suíço', double_elim:'Dupla Elim.', divisions:'Liga Divisões' }[t.format] || t.format;
         return `<div class="tr-tournament-item${isCur?' active-tour':''}" onclick="trSelect('${t.id}')">
           <div>
             <div class="t-name">${esc(t.name)} ${isCur?'✓':''}</div>
@@ -10709,7 +10720,7 @@ function trRenderListTab() {
 function trRenderEquipasTab() {
   const t = trCurrent();
   if (!t) return `<div class="tr-empty"><div class="icon">🏆</div><p>Seleciona um torneio primeiro.</p></div>`;
-  const fmtLabel = { league:'Liga', knockout:'Eliminatórias', groups:'Grupos+Elim.', swiss:'Suíço', double_elim:'Dupla Elim.' }[t.format] || t.format;
+  const fmtLabel = { league:'Liga', knockout:'Eliminatórias', groups:'Grupos+Elim.', swiss:'Suíço', double_elim:'Dupla Elim.', divisions:'Liga Divisões' }[t.format] || t.format;
   const teamLimit = t.numTeams || 0;
   const atLimit = teamLimit > 0 && t.teams.length >= teamLimit;
   const remaining = teamLimit > 0 && !atLimit ? `<div style="font-size:11px;color:var(--amber);font-weight:600;margin-bottom:8px">Faltam ${teamLimit-t.teams.length} equipa${teamLimit-t.teams.length!==1?'s':''} para completar.</div>` : '';
@@ -10760,6 +10771,13 @@ function trRenderJogosTab(split) {
     const allPlayed = t.matches.filter(m=>m.round===curR&&!m.bye).every(m=>m.played);
     ctrlBtns = `<span style="background:var(--sky);color:var(--blue2);padding:3px 10px;border-radius:20px;font-size:11px;font-weight:700">Ronda ${curR}/${totalR}</span>`;
     if (allPlayed && curR < totalR) ctrlBtns += ` <button class="btn btn-primary btn-sm" onclick="trAdvanceSwiss()">⚡ Próxima ronda</button>`;
+  } else if (t.format === 'divisions') {
+    const curR = Math.max(...t.matches.map(m => m.round));
+    const totalR = t.divRounds || 5;
+    const allPlayed = t.matches.filter(m => m.round === curR).every(m => m.played);
+    ctrlBtns = `<span style="background:var(--sky);color:var(--blue2);padding:3px 10px;border-radius:20px;font-size:11px;font-weight:700">Ronda ${curR}/${totalR}</span>`;
+    if (allPlayed && curR < totalR) ctrlBtns += ` <button class="btn btn-primary btn-sm" onclick="trAdvanceDivisions()">⚡ Próxima ronda</button>`;
+    else if (allPlayed && curR >= totalR) { const w = trComputeStandings(t)[0]; if (w) ctrlBtns += ` <span style="background:var(--green2);color:var(--green);padding:3px 10px;border-radius:20px;font-size:11px;font-weight:700">🏆 ${esc(w.name)} vence com ${w.pts} pts</span>`; }
   } else if (t.format === 'knockout') {
     const rounds = [...new Set(t.matches.map(m => m.round))];
     const curR = Math.max(...rounds);
@@ -10810,6 +10828,14 @@ function trRenderJogosTab(split) {
       const lbl = fromEnd===1?'Final':fromEnd===2?'Meia-Final':fromEnd===3?'Quartos-de-Final':'Ronda '+r;
       matchesHtml += `<div class="tr-round-header"><span class="tr-round-label">${lbl}</span><div class="tr-round-line"></div></div>`;
       matchesHtml += rMs.map(m => trMatchCard(m)).join('');
+    });
+  } else if (t.format === 'divisions') {
+    const rondasD = [...new Set(t.matches.map(m=>m.round))].sort((a,b)=>a-b);
+    rondasD.forEach(r => {
+      matchesHtml += `<div class="tr-round-header"><span class="tr-round-label">Ronda ${r}</span><div class="tr-round-line"></div></div>`;
+      t.matches.filter(m=>m.round===r).sort((a,b)=>a.campo-b.campo).forEach(m => {
+        matchesHtml += `<div style="font-size:11px;font-weight:700;color:var(--gray);margin:8px 0 4px;text-transform:uppercase;letter-spacing:0.4px">Campo ${m.campo} · Divisão ${m.divisao} · <span style="color:var(--green)">vitória = ${m.ptsWin} pt${m.ptsWin!==1?'s':''}</span></div>` + trMatchCard(m);
+      });
     });
   } else if (t.format === 'double_elim') {
     matchesHtml = `<div class="tr-bracket-wrap"><div id="tr-bracket" class="tr-bracket"></div></div>`;
@@ -11096,6 +11122,25 @@ function trToggleNewForm() {
   if (f.style.display !== 'none') trToggleGroups();
 }
 
+function trDivUpdatePts(fonte) {
+  const box = document.getElementById('tr-div-pts-box');
+  if (!box) return;
+  const elT = document.getElementById('tr-num-teams'), elF = document.getElementById('tr-num-fields');
+  const n = parseInt(elT?.value) || 0, f = parseInt(elF?.value) || 0;
+  // Campos = divisões = metade das equipas (4 equipas → 2 campos/divisões, 6 → 3, 8 → 4…).
+  // Quem for editado manda no outro: equipas → campos; campos → equipas (= 2 × campos).
+  let D;
+  if (fonte === 'fields' && f >= 1) { D = f; if (elT) elT.value = 2 * D; }
+  else if (n >= 2) { D = Math.floor(n / 2); if (elF) elF.value = D; }
+  else { D = f >= 1 ? f : 3; }
+  const antigos = [...box.querySelectorAll('.tr-div-pt')].map(i => ({ v: i.value, ed: i.dataset.ed === '1' }));
+  const letras = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ';
+  box.innerHTML = Array.from({ length: D }, (_, i) => {
+    const manter = antigos[i] && antigos[i].ed && antigos[i].v !== '';
+    return `<div style="min-width:110px;flex:1"><label class="tr-label">Campo ${i + 1} · Divisão ${letras[i] || i + 1}</label><input class="tr-input tr-div-pt" type="number" min="0" value="${manter ? antigos[i].v : (D - i)}" data-ed="${manter ? 1 : 0}" oninput="this.dataset.ed=1"></div>`;
+  }).join('');
+}
+
 function trToggleGroups() {
   const fmt = document.getElementById('tr-format')?.value;
   if (!fmt) return;
@@ -11105,6 +11150,9 @@ function trToggleGroups() {
   if (ngRow) ngRow.style.display = fmt === 'league' ? '' : 'none';
   if (swRow) swRow.style.display = fmt === 'swiss' ? '' : 'none';
   if (gkRow) gkRow.style.display = fmt === 'groups' ? '' : 'none';
+  const dvBox = document.getElementById('tr-div-box'), ptsRow = document.getElementById('tr-pts-row');
+  if (dvBox) dvBox.style.display = fmt === 'divisions' ? '' : 'none';
+  if (ptsRow) ptsRow.style.display = fmt === 'divisions' ? 'none' : '';
   trCalcUpdate('teams');
 }
 
@@ -11122,6 +11170,9 @@ function trEstimateMatches(numTeams, format, numGroups) {
     const sr = parseInt(document.getElementById('tr-swiss-rounds')?.value) || 0;
     const r = sr > 0 ? sr : Math.ceil(Math.log2(numTeams));
     return Math.floor(numTeams/2) * r;
+  } else if (format === 'divisions') {
+    const dr = parseInt(document.getElementById('tr-div-rounds')?.value) || 5;
+    return Math.floor(numTeams / 2) * dr;
   } else if (format === 'double_elim') { return Math.max(1, numTeams*2-2); }
   else if (format === 'groups') {
     const g = numTeams <= 8 ? 2 : 4; let gm = 0;
@@ -11134,6 +11185,7 @@ function trEstimateMatches(numTeams, format, numGroups) {
 
 function trCalcUpdate(lastChanged) {
   const fmt = document.getElementById('tr-format')?.value || 'league';
+  if (fmt === 'divisions' && (lastChanged === 'teams' || lastChanged === 'fields')) trDivUpdatePts(lastChanged);
   const numTeams = parseInt(document.getElementById('tr-num-teams')?.value) || 0;
   const numGroups = parseInt(document.getElementById('tr-num-groups')?.value) || 1;
   const numFields = parseInt(document.getElementById('tr-num-fields')?.value) || 1;
@@ -11176,6 +11228,8 @@ function trCreateTournament() {
   const ptsDraw = parseInt(document.getElementById('tr-pts-draw')?.value) || 1;
   const numGroups = parseInt(document.getElementById('tr-num-groups')?.value) || 1;
   const swissRounds = parseInt(document.getElementById('tr-swiss-rounds')?.value) || null;
+  const divRounds = parseInt(document.getElementById('tr-div-rounds')?.value) || 5;
+  const divPts = [...document.querySelectorAll('.tr-div-pt')].map(i => { const v = parseInt(i.value); return isNaN(v) ? 0 : v; });
   const groupsNum = parseInt(document.getElementById('tr-groups-num')?.value) || 2;
   const groupsQualify = parseInt(document.getElementById('tr-groups-qualify')?.value) || 2;
   const numTeams = parseInt(document.getElementById('tr-num-teams')?.value) || 0;
@@ -11186,9 +11240,10 @@ function trCreateTournament() {
   const dateStart = document.getElementById('tr-date-start')?.value || '';
   const dateEnd = document.getElementById('tr-date-end')?.value || '';
   if (dateStart && dateEnd && dateEnd < dateStart) { trNotify('⚠️ A data de fim não pode ser anterior à de início!'); return; }
+  if (format === 'divisions' && numTeams > 0 && numTeams % 2 !== 0) { trNotify('⚠️ A Liga Divisões precisa de um nº par de equipas (2 por campo)!'); return; }
   // Se o nº de equipas foi definido, as equipas são criadas já como 1, 2, 3, … (editáveis no separador Equipas)
   const teamsAuto = numTeams > 0 ? Array.from({ length: numTeams }, (_, i) => ({ name: String(i + 1), color: TR_TEAM_COLORS[i % TR_TEAM_COLORS.length] })) : [];
-  const t = { id: Date.now().toString(), name, sport, cls, format, ptsWin, ptsDraw, numGroups, swissRounds, groupsNum, groupsQualify, numTeams, numFields, matchDuration, breakDuration, totalDuration, dateStart, dateEnd, teams: teamsAuto, matches: [], created: new Date().toLocaleDateString('pt-PT') };
+  const t = { id: Date.now().toString(), name, sport, cls, format, ptsWin, ptsDraw, numGroups, swissRounds, divRounds, divPts, groupsNum, groupsQualify, numTeams, numFields, matchDuration, breakDuration, totalDuration, dateStart, dateEnd, teams: teamsAuto, matches: [], created: new Date().toLocaleDateString('pt-PT') };
   trState.tournaments.unshift(t);
   trState.currentId = t.id;
   trSave();
@@ -11335,6 +11390,12 @@ function trGenerateMatches() {
     t.matches = [];
     for (let i=0;i<half;i++) t.matches.push({id:matchId++,round:1,home:shuffled[i].name,away:shuffled[i+half].name,homeScore:null,awayScore:null,played:false,swiss:true});
     if (shuffled.length%2!==0) t.matches.push({id:matchId++,round:1,home:shuffled[shuffled.length-1].name,away:'BYE',homeScore:1,awayScore:0,played:true,bye:true,swiss:true});
+  } else if (t.format === 'divisions') {
+    if (t.teams.length % 2 !== 0) { trNotify('⚠️ A Liga Divisões precisa de um nº par de equipas!'); return; }
+    const Dn = t.teams.length / 2;
+    const sh = [...t.teams].sort(()=>Math.random()-0.5);
+    t.matches = [];
+    for (let c = 1; c <= Dn; c++) t.matches.push(trDivMatch(t, matchId++, 1, c, Dn, sh[2*(c-1)].name, sh[2*(c-1)+1].name));
   } else if (t.format === 'double_elim') {
     const shuffled = [...t.teams].sort(()=>Math.random()-0.5);
     const slots = trNextPow2(shuffled.length);
@@ -11367,7 +11428,7 @@ function trSaveMatch(id) {
   if (!hsEl || !asEl) return;
   const hs = parseInt(hsEl.value), as2 = parseInt(asEl.value);
   if (isNaN(hs)||isNaN(as2)||hs<0||as2<0) { trNotify('⚠️ Resultado inválido!'); return; }
-  if ((t.format==='knockout'||t.format==='double_elim') && hs===as2) { trNotify('⚠️ Em eliminatórias não pode haver empate!'); return; }
+  if ((t.format==='knockout'||t.format==='double_elim'||t.format==='divisions') && hs===as2) { trNotify(t.format==='divisions' ? '⚠️ Na Liga Divisões não pode haver empate (decide com golo de ouro)!' : '⚠️ Em eliminatórias não pode haver empate!'); return; }
   m.homeScore = hs; m.awayScore = as2; m.played = true;
   trSave();
   trGoTab('tab-jogos');
@@ -11380,6 +11441,42 @@ function trResetMatches() {
   if (!t) return;
   t.matches.forEach(m => { if(!m.bye) { m.homeScore=null; m.awayScore=null; m.played=false; } });
   trSave(); trGoTab('tab-jogos');
+}
+
+// ── Liga Divisões ────────────────────────────────────────────
+// Cada campo é uma divisão (Campo 1 = A, 2 = B…) com um jogo por ronda. Quem ganha sobe de campo,
+// quem perde desce; no Campo 1 o vencedor mantém-se e no último campo o perdedor mantém-se.
+// A vitória vale os pontos configurados para a divisão onde foi conseguida.
+function trDivPts(t, campo, D) {
+  const v = t.divPts && t.divPts[campo - 1];
+  return (v !== undefined && v !== null && !isNaN(v)) ? v : Math.max(1, D - campo + 1);
+}
+function trDivMatch(t, id, round, campo, D, home, away) {
+  return { id, round, home, away, homeScore: null, awayScore: null, played: false, div: true, campo, divisao: 'ABCDEFGHIJKLMNOPQRSTUVWXYZ'[campo - 1] || String(campo), ptsWin: trDivPts(t, campo, D) };
+}
+function trAdvanceDivisions() {
+  const t = trCurrent(); if (!t) return;
+  const D = Math.floor(t.teams.length / 2);
+  const total = t.divRounds || 5;
+  const cur = Math.max(...t.matches.map(m => m.round));
+  const curMs = t.matches.filter(m => m.round === cur);
+  if (!curMs.every(m => m.played)) { trNotify('⚠️ Ainda há jogos por disputar!'); return; }
+  if (cur >= total) { trNotify('✅ Todas as rondas já foram geradas!'); return; }
+  const win = {}, lose = {};
+  curMs.forEach(m => { const hw = m.homeScore > m.awayScore; win[m.campo] = hw ? m.home : m.away; lose[m.campo] = hw ? m.away : m.home; });
+  const rank = {}; trComputeStandings(t).forEach((s, i) => { rank[s.name] = i; });
+  let matchId = t.matches.reduce((mx, m) => Math.max(mx, m.id), 0) + 1;
+  const next = cur + 1;
+  for (let c = 1; c <= D; c++) {
+    let a, b;
+    if (D === 1) { a = win[1]; b = lose[1]; }
+    else if (c === 1) { a = win[1]; b = win[2]; }
+    else if (c === D) { a = lose[D - 1]; b = lose[D]; }
+    else { a = lose[c - 1]; b = win[c + 1]; }
+    const par = (rank[a] <= rank[b]) ? [a, b] : [b, a]; // "casa" = quem está melhor na classificação
+    t.matches.push(trDivMatch(t, matchId++, next, c, D, par[0], par[1]));
+  }
+  trSave(); trGoTab('tab-jogos'); trNotify('⚡ Ronda ' + next + ' gerada!');
 }
 
 function trAdvanceSwiss() {
@@ -11518,8 +11615,9 @@ function trComputeStandings(t) {
   t.matches.filter(m=>m.played&&!m.bye&&m.away!=='BYE').forEach(m => {
     const h=map[m.home], a=map[m.away]; if(!h||!a) return;
     h.played++;a.played++;h.gf+=m.homeScore;h.ga+=m.awayScore;a.gf+=m.awayScore;a.ga+=m.homeScore;
-    if(m.homeScore>m.awayScore){h.wins++;h.pts+=t.ptsWin;a.losses++;}
-    else if(m.awayScore>m.homeScore){a.wins++;a.pts+=t.ptsWin;h.losses++;}
+    const pw = m.div ? (m.ptsWin || 0) : t.ptsWin; // Liga Divisões: pontos da vitória dependem do campo
+    if(m.homeScore>m.awayScore){h.wins++;h.pts+=pw;a.losses++;}
+    else if(m.awayScore>m.homeScore){a.wins++;a.pts+=pw;h.losses++;}
     else{h.draws++;a.draws++;h.pts+=t.ptsDraw;a.pts+=t.ptsDraw;}
   });
   Object.values(map).forEach(s=>s.gd=s.gf-s.ga);
