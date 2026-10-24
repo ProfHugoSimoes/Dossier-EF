@@ -1168,6 +1168,7 @@ function renderAvaliacao(){
     {id:'sem2',icon:'📗',label:is3p?'2º PERÍODO':'2º SEMESTRE'},
     ...(is3p?[{id:'sem3',icon:'📕',label:'3º PERÍODO'}]:[]),
     {id:'sem1am',icon:'📙',label:'ALUNOS A.M.'},
+    {id:'compcorp',icon:'⚖️',label:'COMP. CORPORAL'},
     ...(showHistorico?[{id:'historico',icon:'🏅',label:'HISTÓRICO EF'}]:[]),
     {id:'fichaaa',icon:'📝',label:'FICHA AA'},
   ];
@@ -1230,6 +1231,20 @@ function renderAvaliacao(){
       +'<div style="padding-bottom:10px;border-bottom:1px solid var(--border);overflow:visible">'+btnHtml+'</div>'
       +'</div>'
       +(turmaAA ? renderFichaAA(turmaAA) : '<div class="empty-msg">Seleciona uma turma.</div>')
+      +'</div>';
+  }
+
+  // COMPOSIÇÃO CORPORAL — dois momentos de avaliação (peso, altura, IMC, % massa muscular/gorda, metabolismo, gordura visceral)
+  if(filterAvaliacaoSub==='compcorp'){
+    const turmaCC=S.turmas.find(t=>t.id==filterAvaliacaoTurma);
+    const turmasOptsCC='<option value="">Selecionar turma...</option>'+S.turmas.map(t=>'<option value="'+t.id+'"'+(filterAvaliacaoTurma==t.id?' selected':'')+'>'+esc(t.nome)+'</option>').join('');
+    return '<div>'
+      +'<div style="position:sticky;top:0;z-index:50;background:#f0f2f5;padding-bottom:10px;margin-bottom:0;overflow:visible">'
+      +'<div class="filter-bar" style="padding-top:4px"><div class="section-title" style="margin:0">Avaliação</div>'
+      +'<select class="filter-select" id="filterAvalTurmaS" style="min-width:180px">'+turmasOptsCC+'</select></div>'
+      +'<div style="padding-bottom:10px;border-bottom:1px solid var(--border);overflow:visible">'+btnHtml+'</div>'
+      +'</div>'
+      +(turmaCC ? renderComposicaoCorporal(turmaCC) : '<div class="empty-msg">Seleciona uma turma.</div>')
       +'</div>';
   }
 
@@ -4330,6 +4345,235 @@ function exportAvaliacaoExcel(turma, semestre){
 }
 
 // Calcula % de aulas realizadas (sem FP) por aluno, num semestre específico (1 ou 2)
+// ── Composição Corporal (2 momentos de avaliação) ─────────────────────────
+// Dados em S.avaliacao[`${turma.id}__compcorp`] = { m1:{[aluno]:{idade,peso,altura,mm,mg,met,gv,cint,anca}}, m2:{…}, datas:{m1,m2} }
+// A idade é escrita à mão (é a do dia do teste, não a da data de matrícula).
+function ccNum(v){ const n=parseFloat(v); return (isNaN(n)||n<=0)?null:n; }
+function ccCalcIMC(peso, altura){
+  const p=ccNum(peso), a0=ccNum(altura);
+  if(p===null||a0===null) return '';
+  const a=a0>3?a0/100:a0; // altura em cm (se vier em metros, também funciona)
+  const imc=p/(a*a);
+  return isFinite(imc)?(Math.round(imc*10)/10):'';
+}
+// Relação cintura ÷ anca
+function ccCalcRCA(cint, anca){
+  const c=ccNum(cint), a=ccNum(anca);
+  if(c===null||a===null) return '';
+  return Math.round(c/a*100)/100;
+}
+// ICA = índice cintura-altura (cintura ÷ altura, ambas em cm) — é o índice a que a tabela de referência se aplica
+function ccCalcICA(cint, altura){
+  const c=ccNum(cint), h0=ccNum(altura);
+  if(c===null||h0===null) return '';
+  const h=h0<=3?h0*100:h0;
+  return Math.round(c/h*100)/100;
+}
+
+// Análise da % de Massa Gorda em adolescentes (12–18 anos), por género e idade.
+// Tabela de referência fornecida (Faixa Saudável inferior / Ideal / Faixa Saudável superior). Cada linha: [início da faixa
+// saudável, início do ideal, fim do ideal, fim da faixa saudável superior]. Idade > 18 usa a linha dos 18; < 12 não tem referência.
+function ccAnaliseMG(mg, genero, idade){
+  const v=parseFloat(mg);
+  if(isNaN(v)||v<=0) return null;
+  const CLS=[
+    {s:'Abaixo',l:'Abaixo da M. Gorda',c:'#1d4ed8',bg:'#dbeafe'},
+    {s:'Saudável (lim. inf.)',l:'Faixa saudável (limite inferior)',c:'#4d7c0f',bg:'#ecfccb'},
+    {s:'Ideal',l:'Faixa ideal (excelente)',c:'#166534',bg:'#bbf7d0'},
+    {s:'Saudável (lim. sup.)',l:'Faixa saudável (limite superior)',c:'#a16207',bg:'#fef9c3'},
+    {s:'Acima',l:'Acima da M. Gorda',c:'#b91c1c',bg:'#fee2e2'}
+  ];
+  if(genero!=='M'&&genero!=='F') return {s:'Sem género',l:'Falta indicar o género do aluno na turma',c:'#64748b',bg:'#f1f5f9'};
+  if(idade===null||idade===undefined||isNaN(idade)) return {s:'Sem idade',l:'Falta a data de nascimento do aluno na turma',c:'#64748b',bg:'#f1f5f9'};
+  if(idade<12) return {s:'< 12 anos',l:'Sem tabela de referência para menos de 12 anos',c:'#64748b',bg:'#f1f5f9'};
+  const REF={
+    F:{12:[17.0,20.0,24.5,27.5],13:[17.5,20.5,25.0,28.0],14:[18.0,21.0,25.5,28.5],15:[18.5,21.5,26.0,29.0],16:[19.0,22.0,26.5,29.5],17:[19.5,22.5,27.0,30.0],18:[20.0,23.0,28.0,31.0]},
+    M:{12:[12.0,14.0,18.5,22.0],13:[11.5,13.5,18.0,21.5],14:[11.0,13.0,17.5,20.5],15:[10.5,12.5,17.0,20.0],16:[10.0,12.0,17.0,20.0],17:[10.0,12.0,17.0,20.0],18:[10.0,12.5,17.5,21.0]}
+  };
+  const ida=Math.min(18,idade);
+  const [a,b,c,d]=REF[genero][ida];
+  const k=v<a?0:v<b?1:v<=c?2:v<=d?3:4;
+  return Object.assign({},CLS[k],{t:(genero==='F'?'Rapariga':'Rapaz')+', '+ida+(idade>18?'+':'')+' anos · ideal: '+b+'%–'+c+'%'});
+}
+
+// Gordura visceral (adolescentes): nível 1–4 saudável · 5–6 atenção · 7 ou mais elevado
+function ccAnaliseGV(gv){
+  const v=ccNum(gv);
+  if(v===null) return null;
+  if(v<5) return {s:'Saudável',l:'Saudável (nível protetor ideal)',t:'Nível 1 a 4 (até 50 cm²) · risco cardiovascular/metabólico muito baixo',c:'#166534',bg:'#bbf7d0'};
+  if(v<7) return {s:'Atenção',l:'Atenção (acumulação inicial)',t:'Nível 5 a 6 (50 a 65 cm²) · risco moderado, exige monitorização',c:'#a16207',bg:'#fef9c3'};
+  return {s:'Elevado',l:'Elevado (excesso intra-abdominal)',t:'Nível 7 ou mais (acima de 65 cm²) · risco alto, forte ligação à resistência à insulina',c:'#b91c1c',bg:'#fee2e2'};
+}
+
+// ICA (adolescentes até aos 18 anos): <0,41 magreza · 0,41–0,46 (rapazes) / 0,41–0,47 (raparigas) saudável · até 0,49 limítrofe · 0,50 ou mais obesidade central
+function ccAnaliseICA(ica, genero){
+  if(ica===''||ica===null||ica===undefined||isNaN(ica)) return null;
+  const v=Math.round(ica*100)/100;
+  if(genero!=='M'&&genero!=='F') return {s:'Sem género',l:'Falta indicar o género do aluno na turma',c:'#64748b',bg:'#f1f5f9'};
+  const topoSaudavel=genero==='F'?0.47:0.46;
+  if(v<0.41) return {s:'Magreza',l:'Magreza / abaixo do peso ideal',t:'Risco baixo (atenção ao risco de desnutrição)',c:'#1d4ed8',bg:'#dbeafe'};
+  if(v<=topoSaudavel) return {s:'Saudável',l:'Saudável (faixa ideal para '+(genero==='F'?'raparigas':'rapazes')+')',t:'Risco muito baixo',c:'#166534',bg:'#bbf7d0'};
+  if(v<=0.49) return {s:'Limítrofe',l:'Peso limítrofe / linha de atenção',t:'Risco moderado (recomenda-se monitorização)',c:'#a16207',bg:'#fef9c3'};
+  return {s:'Obesidade central',l:'Obesidade central / abdominal',t:'Risco elevado (risco de complicações metabólicas)',c:'#b91c1c',bg:'#fee2e2'};
+}
+
+// Evolução do 1º para o 2º momento. Menos é melhor em IMC, % massa gorda, gordura visceral e ICA; mais é melhor em % massa muscular.
+// Variações dentro da tolerância contam como "Manteve".
+function ccEvolucao(v1, v2, tipo){
+  const a=ccNum(v1), b=ccNum(v2);
+  if(a===null||b===null) return null;
+  const TOL={imc:0.3,mg:0.5,mm:0.5,gv:0,ica:0.01};
+  const MENOS_E_MELHOR={imc:true,mg:true,mm:false,gv:true,ica:true};
+  const d=Math.round((b-a)*1000)/1000;
+  const t=a+' → '+b;
+  if(Math.abs(d)<=TOL[tipo]) return {s:'Manteve',l:'Manteve',t,c:'#475569',bg:'#e2e8f0'};
+  const melhorou=MENOS_E_MELHOR[tipo]?d<0:d>0;
+  return melhorou?{s:'Melhorou',l:'Melhorou',t,c:'#166534',bg:'#bbf7d0'}:{s:'Piorou',l:'Piorou',t,c:'#b91c1c',bg:'#fee2e2'};
+}
+
+// Calcula todas as células automáticas de uma linha (aluno) — usado ao desenhar e ao atualizar, para os dois darem sempre o mesmo resultado.
+function ccComputeRow(m1, m2, genero){
+  const idade1=ccNum(m1.idade);
+  const idade2=ccNum(m2.idade)!==null?ccNum(m2.idade):idade1; // 2º momento sem idade → usa a do 1º
+  const out={};
+  [['m1',m1,idade1],['m2',m2,idade2]].forEach(([mom,d,ida])=>{
+    const ica=ccCalcICA(d.cint,d.altura);
+    out[mom]={
+      imc:ccCalcIMC(d.peso,d.altura),
+      rca:ccCalcRCA(d.cint,d.anca),
+      ica:ica,
+      an:ccAnaliseMG(d.mg,genero,ida),
+      angv:ccAnaliseGV(d.gv),
+      anica:ccAnaliseICA(ica,genero)
+    };
+  });
+  out.ev={
+    imc:ccEvolucao(out.m1.imc,out.m2.imc,'imc'),
+    mg:ccEvolucao(m1.mg,m2.mg,'mg'),
+    mm:ccEvolucao(m1.mm,m2.mm,'mm'),
+    gv:ccEvolucao(m1.gv,m2.gv,'gv'),
+    ica:ccEvolucao(out.m1.ica,out.m2.ica,'ica')
+  };
+  return out;
+}
+
+// Texto/cores/dica de uma célula automática
+function ccCellState(campo, mom, comp, bgBase){
+  const num=v=>({text:(v!==''&&v!==null&&v!==undefined)?String(v):'—',color:'var(--navy)',bg:bgBase,title:''});
+  const rich=r=>r?{text:r.s,color:r.c,bg:r.bg,title:r.l+(r.t?' — '+r.t:'')}:{text:'—',color:'#cbd5e1',bg:bgBase,title:''};
+  if(campo==='imc'||campo==='rca'||campo==='ica') return num(comp[mom][campo]);
+  if(campo==='an'||campo==='angv'||campo==='anica') return rich(comp[mom][campo]);
+  if(campo.indexOf('ev_')===0) return rich(comp.ev[campo.slice(3)]);
+  return {text:'—',color:'#cbd5e1',bg:bgBase,title:''};
+}
+
+// Atualiza as células automáticas de uma linha sem redesenhar a tabela (mantém foco e scroll)
+function ccRefreshRow(row){
+  const get=mom=>{ const o={}; row.querySelectorAll('.cc-in[data-mom="'+mom+'"]').forEach(i=>{ o[i.dataset.campo]=i.value; }); return o; };
+  const comp=ccComputeRow(get('m1'),get('m2'),row.dataset.gen);
+  row.querySelectorAll('.cc-calc').forEach(cell=>{
+    const st=ccCellState(cell.dataset.campo,cell.dataset.mom,comp,cell.dataset.bg||'');
+    cell.textContent=st.text;
+    cell.style.color=st.color;
+    cell.style.background=st.bg;
+    cell.title=st.title;
+  });
+}
+
+function renderComposicaoCorporal(turma){
+  const key=`${turma.id}__compcorp`;
+  const dados=S.avaliacao?.[key]||{};
+  const COLS=[
+    ['peso','Peso','kg',0.1,'in'],['altura','Altura','cm',1,'in'],['imc','IMC','kg/m²',0,'num'],
+    ['mm','% Massa<br>Muscular','%',0.1,'in'],['mg','% Massa<br>Gorda','%',0.1,'in'],['an','Análise<br>M. Gorda','',0,'rich'],
+    ['met','Metabolismo<br>de Repouso','kcal',1,'in'],
+    ['gv','Índice Gord.<br>Visceral','',0.5,'in'],['angv','Análise<br>G. Visceral','',0,'rich'],
+    ['cint','Perímetro<br>Cintura','cm',0.1,'in'],['anca','Perímetro<br>Anca','cm',0.1,'in'],
+    ['rca','Cintura<br>÷ Anca','',0,'num'],['ica','ICA<br>(cint. ÷ alt.)','',0,'num'],['anica','Análise<br>ICA','',0,'rich']
+  ];
+  const EVS=[['ev_imc','IMC'],['ev_mg','M. Gorda'],['ev_mm','M. Muscular'],['ev_gv','G. Visceral'],['ev_ica','ICA']];
+  const TINT={m1:'#f0f9ff',m2:'#f0fdf4',ev:'#faf5ff'};
+  const inp=(mom,nome,campo,val,step,ph)=>`<input type="number" step="${step}" min="0" class="cc-in" data-turma="${turma.id}" data-nome="${esc(nome)}" data-mom="${mom}" data-campo="${campo}" value="${esc(String(val==null?'':val))}" placeholder="${esc(ph||'—')}" style="width:100%;box-sizing:border-box;text-align:center;border:1px solid var(--border);border-radius:4px;padding:4px 2px;font-size:12px;font-weight:600;background:#fff;color:var(--navy);outline:none">`;
+  const thBase='color:#fff;font-weight:600;border:1px solid rgba(255,255,255,0.15);position:sticky;z-index:10;background:var(--navy)';
+
+  const rows=(turma.alunos||[]).map((a,i)=>{
+    const nome=typeof a==='string'?a:a.nome;
+    const genero=(typeof a==='object'?a.genero||'':'').toUpperCase();
+    const genLabel=genero==='M'?'M':genero==='F'?'F':'—';
+    const bg=i%2===0?'#f8fafc':'#fff';
+    const m1=(dados.m1&&dados.m1[nome])||{}, m2=(dados.m2&&dados.m2[nome])||{};
+    const comp=ccComputeRow(m1,m2,genero);
+    const calcCell=(campo,mom,tint,rich)=>{
+      const st=ccCellState(campo,mom,comp,tint);
+      return `<td class="cc-calc" data-mom="${mom}" data-campo="${campo}" data-bg="${tint}" title="${esc(st.title)}" style="padding:4px 3px;border:1px solid var(--border);text-align:center;font-weight:${rich?700:800};font-size:${rich?10:13}px;line-height:1.15;min-width:${rich?84:56}px;color:${st.color};background:${st.bg}">${esc(st.text)}</td>`;
+    };
+    const cellFor=(spec,mom,d)=>{
+      const [campo,,,step,tipo]=spec;
+      if(tipo==='in') return `<td style="padding:3px 3px;border:1px solid var(--border);background:${bg}">${inp(mom,nome,campo,d[campo],step)}</td>`;
+      return calcCell(campo,mom,TINT[mom],tipo==='rich');
+    };
+    const celM1=COLS.map(s=>cellFor(s,'m1',m1)).join('');
+    const celM2=`<td style="padding:3px 3px;border:1px solid var(--border);background:${bg}">${inp('m2',nome,'idade',m2.idade,1,m1.idade?String(m1.idade):'—')}</td>`
+      +COLS.map(s=>cellFor(s,'m2',m2)).join('')
+      +EVS.map(([campo])=>calcCell(campo,'m2',TINT.ev,true)).join('');
+    return `<tr style="background:${bg}" data-gen="${genero}">
+      <td style="width:36px;min-width:36px;box-sizing:border-box;padding:5px 4px;border:1px solid var(--border);text-align:center;color:var(--gray);font-weight:600;position:sticky;left:0;z-index:3;background:${bg}">${i+1}</td>
+      <td style="width:120px;min-width:120px;max-width:120px;box-sizing:border-box;padding:5px 8px;border:1px solid var(--border);font-weight:600;color:var(--navy);font-size:12px;line-height:1.2;position:sticky;left:36px;z-index:3;background:${bg}">${esc(nome)}</td>
+      <td style="width:44px;min-width:44px;box-sizing:border-box;padding:5px 4px;border:1px solid var(--border);text-align:center;font-weight:600;color:var(--navy);position:sticky;left:156px;z-index:3;background:${bg}">${genLabel}</td>
+      <td style="width:54px;min-width:54px;box-sizing:border-box;padding:3px 3px;border:1px solid var(--border);position:sticky;left:200px;z-index:3;background:${bg};box-shadow:3px 0 5px -1px rgba(0,0,0,0.15)">${inp('m1',nome,'idade',m1.idade,1)}</td>
+      ${celM1}${celM2}
+    </tr>`;
+  }).join('');
+
+  const dataIn=mom=>{
+    const dt=(dados.datas&&dados.datas[mom])||'';
+    return `<input type="date" class="cc-data" data-turma="${turma.id}" data-mom="${mom}" value="${esc(dt)}" title="Data desta avaliação" style="margin-left:8px;font-size:11px;border:1px solid var(--border);border-radius:4px;padding:2px 4px;background:#fff;color:var(--navy)">`;
+  };
+  const g1=`<th colspan="${COLS.length}" style="${thBase};top:0;height:38px;background:#dbeafe;color:#1d4ed8;text-align:center;font-size:13px;padding:3px 6px">1º Momento ${dataIn('m1')}</th>`;
+  const g2=`<th colspan="${COLS.length+1}" style="${thBase};top:0;height:38px;background:#dcfce7;color:#16a34a;text-align:center;font-size:13px;padding:3px 6px">2º Momento ${dataIn('m2')}</th>`;
+  const g3=`<th colspan="${EVS.length}" style="${thBase};top:0;height:38px;background:#ede9fe;color:#6d28d9;text-align:center;font-size:13px;padding:3px 6px">Evolução vs 1º momento</th>`;
+  const hc=(label,unid,bgc,col)=>`<th style="${thBase};top:38px;background:${bgc};color:${col};text-align:center;font-size:10px;padding:4px 2px;min-width:68px;line-height:1.2">${label}${unid?`<br><span style="font-weight:400;opacity:0.75">(${unid})</span>`:''}</th>`;
+  const h1=COLS.map(([,l,u])=>hc(l,u,'#dbeafe','#1d4ed8')).join('');
+  const h2=hc('Idade<br>dia do teste','anos','#dcfce7','#16a34a')+COLS.map(([,l,u])=>hc(l,u,'#dcfce7','#16a34a')).join('');
+  const h3=EVS.map(([,l])=>hc('Evolução<br>'+l,'','#ede9fe','#6d28d9')).join('');
+  const nCols=4+COLS.length*2+1+EVS.length;
+  const chip=(t,bgc,col)=>`<span style="background:${bgc};color:${col};font-weight:700;border-radius:4px;padding:2px 8px">${t}</span>`;
+
+  return `<div class="card" style="margin-bottom:12px">
+    <div style="font-size:16px;font-weight:700;color:var(--navy);margin-bottom:4px">⚖️ Composição Corporal — ${esc(turma.nome)}</div>
+    <div style="font-size:11px;color:var(--gray);margin-bottom:12px">Dois momentos de avaliação. A <b>idade</b> escreve-se à mão (é a do dia do teste); no 2º momento, se ficar vazia, usa-se a do 1º. O IMC, a relação cintura ÷ anca, o ICA, as análises e a evolução calculam-se sozinhos. Tudo é guardado ao sair de cada campo.</div>
+    <div style="overflow:auto;max-height:calc(100vh - 340px);border:1px solid var(--border);border-radius:8px">
+      <table style="border-collapse:collapse;min-width:100%">
+        <thead>
+          <tr>
+            <th rowspan="2" style="${thBase};top:0;left:0;width:36px;min-width:36px;box-sizing:border-box;padding:8px 6px;text-align:center;z-index:12">#</th>
+            <th rowspan="2" style="${thBase};top:0;left:36px;width:120px;min-width:120px;box-sizing:border-box;padding:8px 10px;text-align:left;z-index:12">Nome</th>
+            <th rowspan="2" style="${thBase};top:0;left:156px;width:44px;min-width:44px;box-sizing:border-box;padding:8px 4px;text-align:center;z-index:12">Gén.</th>
+            <th rowspan="2" title="Idade no dia do teste (1º momento) — escrever à mão" style="${thBase};top:0;left:200px;width:54px;min-width:54px;box-sizing:border-box;padding:8px 4px;text-align:center;z-index:12;box-shadow:3px 0 5px -1px rgba(0,0,0,0.25)">Idade</th>
+            ${g1}${g2}${g3}
+          </tr>
+          <tr>${h1}${h2}${h3}</tr>
+        </thead>
+        <tbody>${rows||`<tr><td colspan="${nCols}" style="padding:16px;text-align:center;color:var(--gray)">Sem alunos nesta turma.</td></tr>`}</tbody>
+      </table>
+    </div>
+    <div style="display:flex;flex-wrap:wrap;gap:6px;align-items:center;margin-top:10px;font-size:11px;color:var(--gray)">
+      <b style="color:var(--navy)">% massa gorda:</b>
+      ${chip('Abaixo','#dbeafe','#1d4ed8')}${chip('Saudável (lim. inf.)','#ecfccb','#4d7c0f')}${chip('Ideal','#bbf7d0','#166534')}${chip('Saudável (lim. sup.)','#fef9c3','#a16207')}${chip('Acima','#fee2e2','#b91c1c')}
+      <span style="flex-basis:100%;margin-bottom:4px">Referência: tabelas de % de massa gorda saudável para adolescentes (12–18 anos), por género e idade; com mais de 18 anos usa-se a linha dos 18; abaixo dos 12 não há referência.</span>
+      <b style="color:var(--navy)">Gordura visceral:</b>
+      ${chip('Saudável (nível 1–4)','#bbf7d0','#166534')}${chip('Atenção (nível 5–6)','#fef9c3','#a16207')}${chip('Elevado (nível 7+)','#fee2e2','#b91c1c')}
+      <span style="flex-basis:100%;margin-bottom:4px"></span>
+      <b style="color:var(--navy)">ICA (cintura ÷ altura):</b>
+      ${chip('Magreza (&lt; 0,41)','#dbeafe','#1d4ed8')}${chip('Saudável (0,41–0,46 rapazes · 0,41–0,47 raparigas)','#bbf7d0','#166534')}${chip('Limítrofe (até 0,49)','#fef9c3','#a16207')}${chip('Obesidade central (≥ 0,50)','#fee2e2','#b91c1c')}
+      <span style="flex-basis:100%;margin-bottom:4px"></span>
+      <b style="color:var(--navy)">Evolução:</b>
+      ${chip('Melhorou','#bbf7d0','#166534')}${chip('Manteve','#e2e8f0','#475569')}${chip('Piorou','#fee2e2','#b91c1c')}
+      <span style="flex-basis:100%">Menos é melhor em IMC, % massa gorda, gordura visceral e ICA; mais é melhor na % massa muscular. Conta como "Manteve" uma variação até 0,3 no IMC, 0,5 pontos nas % de massa gorda/muscular e 0,01 no ICA (na gordura visceral, qualquer mudança conta). Passa o rato sobre as análises para ver o detalhe.</span>
+    </div>
+  </div>`;
+}
+
 // ── Histórico EF (importa notas finais do 2º Semestre de anos letivos
 // anteriores, para turmas de secundário) ────────────────────────────────
 let _historicoAnosCache=null;   // null = ainda não carregado; {ano:[{nome,nota,anoLetivo}]} depois de carregado
@@ -7211,6 +7455,31 @@ function attachEvents(){
       if(!S.avaliacao[sem1Key]) S.avaliacao[sem1Key]={};
       if(!S.avaliacao[sem1Key].avalEfAnoAnterior) S.avaliacao[sem1Key].avalEfAnoAnterior={};
       S.avaliacao[sem1Key].avalEfAnoAnterior[nome]=val===''?'':parseFloat(val);
+      save();
+    });
+  });
+  document.querySelectorAll('.cc-in').forEach(el=>{
+    el.addEventListener('change',()=>{
+      const {turma,nome,mom,campo}=el.dataset;
+      const key=`${turma}__compcorp`;
+      if(!S.avaliacao) S.avaliacao={};
+      if(!S.avaliacao[key]) S.avaliacao[key]={};
+      if(!S.avaliacao[key][mom]) S.avaliacao[key][mom]={};
+      if(!S.avaliacao[key][mom][nome]) S.avaliacao[key][mom][nome]={};
+      const v=el.value.trim();
+      S.avaliacao[key][mom][nome][campo]=v===''?'':parseFloat(v);
+      const row=el.closest('tr');
+      if(row) ccRefreshRow(row); // IMC, ICA, análises e evolução, sem re-render (mantém o foco e o scroll)
+      save();
+    });
+  });
+  document.querySelectorAll('.cc-data').forEach(el=>{
+    el.addEventListener('change',()=>{
+      const key=`${el.dataset.turma}__compcorp`;
+      if(!S.avaliacao) S.avaliacao={};
+      if(!S.avaliacao[key]) S.avaliacao[key]={};
+      if(!S.avaliacao[key].datas) S.avaliacao[key].datas={};
+      S.avaliacao[key].datas[el.dataset.mom]=el.value;
       save();
     });
   });
