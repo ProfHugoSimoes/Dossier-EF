@@ -4356,17 +4356,17 @@ function ccCalcIMC(peso, altura){
   const imc=p/(a*a);
   return isFinite(imc)?(Math.round(imc*10)/10):'';
 }
-// Relação cintura ÷ anca
-function ccCalcRCA(cint, anca){
+// ICA = Índice Cintura-Anca (cintura ÷ anca, ambos em cm)
+function ccCalcICA(cint, anca){
   const c=ccNum(cint), a=ccNum(anca);
-  if(c===null||a===null) return '';
+  if(c===null||a===null||a===0) return '';
   return Math.round(c/a*100)/100;
 }
-// ICA = índice cintura-altura (cintura ÷ altura, ambas em cm) — é o índice a que a tabela de referência se aplica
-function ccCalcICA(cint, altura){
+// RCE = Relação Cintura-Estatura (cintura ÷ altura, ambas em cm)
+function ccCalcRCE(cint, altura){
   const c=ccNum(cint), h0=ccNum(altura);
-  if(c===null||h0===null) return '';
-  const h=h0<=3?h0*100:h0;
+  if(c===null||h0===null||h0===0) return '';
+  const h=h0<=3?h0*100:h0; // se a altura vier em metros, também funciona
   return Math.round(c/h*100)/100;
 }
 
@@ -4405,16 +4405,31 @@ function ccAnaliseGV(gv){
   return {s:'Elevado',l:'Elevado (excesso intra-abdominal)',t:'Nível 7 ou mais (acima de 65 cm²) · risco alto, forte ligação à resistência à insulina',c:'#b91c1c',bg:'#fee2e2'};
 }
 
-// ICA (adolescentes até aos 18 anos): <0,41 magreza · 0,41–0,46 (rapazes) / 0,41–0,47 (raparigas) saudável · até 0,49 limítrofe · 0,50 ou mais obesidade central
-function ccAnaliseICA(ica, genero){
+// ICA — Índice Cintura-Anca (adolescentes, por género e idade).
+// Limite = valor a partir do qual o risco passa a moderado/alto (percentil 90 ou superior, excesso de adiposidade central).
+// 10–12 anos: F 0,81 · M 0,88 | 13–15 anos: F 0,80 · M 0,86 | 16–18 anos: F 0,82 · M 0,89 | adultos (> 18): F 0,85 · M 0,90. Sem referência abaixo dos 10 anos.
+function ccAnaliseICA(ica, genero, idade){
   if(ica===''||ica===null||ica===undefined||isNaN(ica)) return null;
   const v=Math.round(ica*100)/100;
   if(genero!=='M'&&genero!=='F') return {s:'Sem género',l:'Falta indicar o género do aluno na turma',c:'#64748b',bg:'#f1f5f9'};
-  const topoSaudavel=genero==='F'?0.47:0.46;
-  if(v<0.41) return {s:'Magreza',l:'Magreza / abaixo do peso ideal',t:'Risco baixo (atenção ao risco de desnutrição)',c:'#1d4ed8',bg:'#dbeafe'};
-  if(v<=topoSaudavel) return {s:'Saudável',l:'Saudável (faixa ideal para '+(genero==='F'?'raparigas':'rapazes')+')',t:'Risco muito baixo',c:'#166534',bg:'#bbf7d0'};
-  if(v<=0.49) return {s:'Limítrofe',l:'Peso limítrofe / linha de atenção',t:'Risco moderado (recomenda-se monitorização)',c:'#a16207',bg:'#fef9c3'};
-  return {s:'Obesidade central',l:'Obesidade central / abdominal',t:'Risco elevado (risco de complicações metabólicas)',c:'#b91c1c',bg:'#fee2e2'};
+  if(idade===null||idade===undefined||isNaN(idade)) return {s:'Sem idade',l:'Falta preencher a idade (dia do teste)',c:'#64748b',bg:'#f1f5f9'};
+  if(idade<10) return {s:'< 10 anos',l:'Sem tabela de referência para menos de 10 anos',c:'#64748b',bg:'#f1f5f9'};
+  const LIM={F:{a:0.81,b:0.80,c:0.82,ad:0.85},M:{a:0.88,b:0.86,c:0.89,ad:0.90}}[genero];
+  const faixa=idade<=12?'10–12 anos':idade<=15?'13–15 anos':idade<=18?'16–18 anos':'adulto (> 18 anos)';
+  const lim=idade<=12?LIM.a:idade<=15?LIM.b:idade<=18?LIM.c:LIM.ad;
+  const t=(genero==='F'?'Rapariga':'Rapaz')+', '+faixa+' · risco moderado/alto a partir de '+String(lim).replace('.',',');
+  if(v<lim) return {s:'Risco baixo',l:'Risco baixo / normal',t,c:'#166534',bg:'#bbf7d0'};
+  return {s:'Risco mod./alto',l:'Risco moderado a alto',t,c:'#b91c1c',bg:'#fee2e2'};
+}
+
+// RCE — Relação Cintura-Estatura (10–18 anos, ambos os sexos): <0,40 risco muito baixo · 0,40–0,49 peso saudável/normal · 0,50–0,59 atenção/risco moderado · ≥0,60 risco elevado (obesidade central)
+function ccAnaliseRCE(rce){
+  if(rce===''||rce===null||rce===undefined||isNaN(rce)) return null;
+  const v=Math.round(rce*100)/100;
+  if(v<0.40) return {s:'Risco muito baixo',l:'Risco muito baixo',t:'Abaixo de 0,40',c:'#1d4ed8',bg:'#dbeafe'};
+  if(v<0.50) return {s:'Normal',l:'Peso saudável / normal',t:'0,40 a 0,49 · ideal manter-se nesta faixa',c:'#166534',bg:'#bbf7d0'};
+  if(v<0.60) return {s:'Atenção',l:'Atenção / risco moderado',t:'0,50 a 0,59 · indica acumulação de gordura abdominal e exige acompanhamento',c:'#a16207',bg:'#fef9c3'};
+  return {s:'Risco elevado',l:'Risco elevado (obesidade central)',t:'0,60 ou mais',c:'#b91c1c',bg:'#fee2e2'};
 }
 
 // Evolução do 1º para o 2º momento. Menos é melhor em IMC, % massa gorda, gordura visceral e ICA; mais é melhor em % massa muscular.
@@ -4422,8 +4437,8 @@ function ccAnaliseICA(ica, genero){
 function ccEvolucao(v1, v2, tipo){
   const a=ccNum(v1), b=ccNum(v2);
   if(a===null||b===null) return null;
-  const TOL={imc:0.3,mg:0.5,mm:0.5,gv:0,ica:0.01};
-  const MENOS_E_MELHOR={imc:true,mg:true,mm:false,gv:true,ica:true};
+  const TOL={imc:0.3,mg:0.5,mm:0.5,gv:0,ica:0.01,rce:0.01};
+  const MENOS_E_MELHOR={imc:true,mg:true,mm:false,gv:true,ica:true,rce:true};
   const d=Math.round((b-a)*1000)/1000;
   const t=a+' → '+b;
   if(Math.abs(d)<=TOL[tipo]) return {s:'Manteve',l:'Manteve',t,c:'#475569',bg:'#e2e8f0'};
@@ -4437,14 +4452,16 @@ function ccComputeRow(m1, m2, genero){
   const idade2=ccNum(m2.idade)!==null?ccNum(m2.idade):idade1; // 2º momento sem idade → usa a do 1º
   const out={};
   [['m1',m1,idade1],['m2',m2,idade2]].forEach(([mom,d,ida])=>{
-    const ica=ccCalcICA(d.cint,d.altura);
+    const ica=ccCalcICA(d.cint,d.anca);
+    const rce=ccCalcRCE(d.cint,d.altura);
     out[mom]={
       imc:ccCalcIMC(d.peso,d.altura),
-      rca:ccCalcRCA(d.cint,d.anca),
       ica:ica,
+      rce:rce,
       an:ccAnaliseMG(d.mg,genero,ida),
       angv:ccAnaliseGV(d.gv),
-      anica:ccAnaliseICA(ica,genero)
+      anica:ccAnaliseICA(ica,genero,ida),
+      anrce:ccAnaliseRCE(rce)
     };
   });
   out.ev={
@@ -4452,7 +4469,8 @@ function ccComputeRow(m1, m2, genero){
     mg:ccEvolucao(m1.mg,m2.mg,'mg'),
     mm:ccEvolucao(m1.mm,m2.mm,'mm'),
     gv:ccEvolucao(m1.gv,m2.gv,'gv'),
-    ica:ccEvolucao(out.m1.ica,out.m2.ica,'ica')
+    ica:ccEvolucao(out.m1.ica,out.m2.ica,'ica'),
+    rce:ccEvolucao(out.m1.rce,out.m2.rce,'rce')
   };
   return out;
 }
@@ -4461,8 +4479,8 @@ function ccComputeRow(m1, m2, genero){
 function ccCellState(campo, mom, comp, bgBase){
   const num=v=>({text:(v!==''&&v!==null&&v!==undefined)?String(v):'—',color:'var(--navy)',bg:bgBase,title:''});
   const rich=r=>r?{text:r.s,color:r.c,bg:r.bg,title:r.l+(r.t?' — '+r.t:'')}:{text:'—',color:'#cbd5e1',bg:bgBase,title:''};
-  if(campo==='imc'||campo==='rca'||campo==='ica') return num(comp[mom][campo]);
-  if(campo==='an'||campo==='angv'||campo==='anica') return rich(comp[mom][campo]);
+  if(campo==='imc'||campo==='ica'||campo==='rce') return num(comp[mom][campo]);
+  if(campo==='an'||campo==='angv'||campo==='anica'||campo==='anrce') return rich(comp[mom][campo]);
   if(campo.indexOf('ev_')===0) return rich(comp.ev[campo.slice(3)]);
   return {text:'—',color:'#cbd5e1',bg:bgBase,title:''};
 }
@@ -4489,9 +4507,10 @@ function renderComposicaoCorporal(turma){
     ['met','Metabolismo<br>de Repouso','kcal',1,'in'],
     ['gv','Índice Gord.<br>Visceral','',0.5,'in'],['angv','Análise<br>G. Visceral','',0,'rich'],
     ['cint','Perímetro<br>Cintura','cm',0.1,'in'],['anca','Perímetro<br>Anca','cm',0.1,'in'],
-    ['rca','Cintura<br>÷ Anca','',0,'num'],['ica','ICA<br>(cint. ÷ alt.)','',0,'num'],['anica','Análise<br>ICA','',0,'rich']
+    ['ica','ICA<br>(cint. ÷ anca)','',0,'num'],['anica','Análise<br>ICA','',0,'rich'],
+    ['rce','RCE<br>(cint. ÷ alt.)','',0,'num'],['anrce','Análise<br>RCE','',0,'rich']
   ];
-  const EVS=[['ev_imc','IMC'],['ev_mg','M. Gorda'],['ev_mm','M. Muscular'],['ev_gv','G. Visceral'],['ev_ica','ICA']];
+  const EVS=[['ev_imc','IMC'],['ev_mg','M. Gorda'],['ev_mm','M. Muscular'],['ev_gv','G. Visceral'],['ev_ica','ICA'],['ev_rce','RCE']];
   const TINT={m1:'#f0f9ff',m2:'#f0fdf4',ev:'#faf5ff'};
   const inp=(mom,nome,campo,val,step,ph)=>`<input type="number" step="${step}" min="0" class="cc-in" data-turma="${turma.id}" data-nome="${esc(nome)}" data-mom="${mom}" data-campo="${campo}" value="${esc(String(val==null?'':val))}" placeholder="${esc(ph||'—')}" style="width:100%;box-sizing:border-box;text-align:center;border:1px solid var(--border);border-radius:4px;padding:4px 2px;font-size:12px;font-weight:600;background:#fff;color:var(--navy);outline:none">`;
   const thBase='color:#fff;font-weight:600;border:1px solid rgba(255,255,255,0.15);position:sticky;z-index:10;background:var(--navy)';
@@ -4519,7 +4538,7 @@ function renderComposicaoCorporal(turma){
       +EVS.map(([campo])=>calcCell(campo,'m2',TINT.ev,true)).join('');
     return `<tr style="background:${bg}" data-gen="${genero}">
       <td style="width:36px;min-width:36px;box-sizing:border-box;padding:5px 4px;border:1px solid var(--border);text-align:center;color:var(--gray);font-weight:600;position:sticky;left:0;z-index:3;background:${bg}">${i+1}</td>
-      <td style="width:120px;min-width:120px;max-width:120px;box-sizing:border-box;padding:5px 8px;border:1px solid var(--border);font-weight:600;color:var(--navy);font-size:12px;line-height:1.2;position:sticky;left:36px;z-index:3;background:${bg}">${esc(nome)}</td>
+      <td style="width:120px;min-width:120px;max-width:120px;box-sizing:border-box;padding:5px 8px;border:1px solid var(--border);font-weight:600;color:var(--navy);font-size:12px;line-height:1.2;position:sticky;left:36px;z-index:3;background:${bg}"><a href="javascript:void(0)" class="cc-nome-link" data-turma="${turma.id}" data-nome="${esc(nome)}" style="color:#2563eb;text-decoration:underline;cursor:pointer" title="Ver relatório do aluno">${esc(nome)}</a></td>
       <td style="width:44px;min-width:44px;box-sizing:border-box;padding:5px 4px;border:1px solid var(--border);text-align:center;font-weight:600;color:var(--navy);position:sticky;left:156px;z-index:3;background:${bg};box-shadow:3px 0 5px -1px rgba(0,0,0,0.15)">${genLabel}</td>
       ${celM1}${celM2}
     </tr>`;
@@ -4541,7 +4560,7 @@ function renderComposicaoCorporal(turma){
 
   return `<div class="card" style="margin-bottom:12px">
     <div style="font-size:16px;font-weight:700;color:var(--navy);margin-bottom:4px">⚖️ Composição Corporal — ${esc(turma.nome)}</div>
-    <div style="font-size:11px;color:var(--gray);margin-bottom:12px">Dois momentos de avaliação. A <b>idade</b> escreve-se à mão (é a do dia do teste); no 2º momento, se ficar vazia, usa-se a do 1º. O IMC, a relação cintura ÷ anca, o ICA, as análises e a evolução calculam-se sozinhos. Tudo é guardado ao sair de cada campo.</div>
+    <div style="font-size:11px;color:var(--gray);margin-bottom:12px">Dois momentos de avaliação. A <b>idade</b> escreve-se à mão (é a do dia do teste); no 2º momento, se ficar vazia, usa-se a do 1º. O IMC, o ICA (índice cintura-anca), o RCE (relação cintura-estatura), as análises e a evolução calculam-se sozinhos. Tudo é guardado ao sair de cada campo.</div>
     <div style="overflow:auto;max-height:calc(100vh - 340px);border:1px solid var(--border);border-radius:8px">
       <table style="border-collapse:collapse;min-width:100%">
         <thead>
@@ -4563,12 +4582,15 @@ function renderComposicaoCorporal(turma){
       <b style="color:var(--navy)">Gordura visceral:</b>
       ${chip('Saudável (nível 1–4)','#bbf7d0','#166534')}${chip('Atenção (nível 5–6)','#fef9c3','#a16207')}${chip('Elevado (nível 7+)','#fee2e2','#b91c1c')}
       <span style="flex-basis:100%;margin-bottom:4px"></span>
-      <b style="color:var(--navy)">ICA (cintura ÷ altura):</b>
-      ${chip('Magreza (&lt; 0,41)','#dbeafe','#1d4ed8')}${chip('Saudável (0,41–0,46 rapazes · 0,41–0,47 raparigas)','#bbf7d0','#166534')}${chip('Limítrofe (até 0,49)','#fef9c3','#a16207')}${chip('Obesidade central (≥ 0,50)','#fee2e2','#b91c1c')}
+      <b style="color:var(--navy)">ICA (cintura ÷ anca):</b>
+      ${chip('Risco baixo / normal','#bbf7d0','#166534')}${chip('Risco moderado a alto','#fee2e2','#b91c1c')}
+      <span style="flex-basis:100%;margin-bottom:4px">Risco moderado a alto a partir de — Raparigas: 0,81 (10–12 anos) · 0,80 (13–15) · 0,82 (16–18) · 0,85 (adultas). Rapazes: 0,88 (10–12 anos) · 0,86 (13–15) · 0,89 (16–18) · 0,90 (adultos). Usa a idade do dia do teste; sem referência abaixo dos 10 anos.</span>
+      <b style="color:var(--navy)">RCE (cintura ÷ altura, 10–18 anos):</b>
+      ${chip('Risco muito baixo (&lt; 0,40)','#dbeafe','#1d4ed8')}${chip('Normal (0,40–0,49)','#bbf7d0','#166534')}${chip('Atenção (0,50–0,59)','#fef9c3','#a16207')}${chip('Risco elevado (≥ 0,60)','#fee2e2','#b91c1c')}
       <span style="flex-basis:100%;margin-bottom:4px"></span>
       <b style="color:var(--navy)">Evolução:</b>
       ${chip('Melhorou','#bbf7d0','#166534')}${chip('Manteve','#e2e8f0','#475569')}${chip('Piorou','#fee2e2','#b91c1c')}
-      <span style="flex-basis:100%">Menos é melhor em IMC, % massa gorda, gordura visceral e ICA; mais é melhor na % massa muscular. Conta como "Manteve" uma variação até 0,3 no IMC, 0,5 pontos nas % de massa gorda/muscular e 0,01 no ICA (na gordura visceral, qualquer mudança conta). Passa o rato sobre as análises para ver o detalhe.</span>
+      <span style="flex-basis:100%">Menos é melhor em IMC, % massa gorda, gordura visceral, ICA e RCE; mais é melhor na % massa muscular. Conta como "Manteve" uma variação até 0,3 no IMC, 0,5 pontos nas % de massa gorda/muscular e 0,01 no ICA e no RCE (na gordura visceral, qualquer mudança conta). Passa o rato sobre as análises para ver o detalhe.</span>
     </div>
   </div>`;
 }
@@ -6440,6 +6462,286 @@ function renderRelatorioAlunoModal(){
   </div></div>`;
 }
 
+// ── Relatório individual de Composição Corporal (para entregar ao aluno) ──
+function ccFmtData(d){
+  const m=/^(\d{4})-(\d{2})-(\d{2})/.exec(d||'');
+  return m?`${m[3]}/${m[2]}/${m[1]}`:(d||'');
+}
+// Converte a classificação (texto) num nível simples: ok · baixo · atencao · risco
+function ccNivelDe(campo, r){
+  if(!r) return null;
+  const s=r.s;
+  if(campo==='an') return s==='Abaixo'?'baixo':s==='Acima'?'risco':(s==='Saudável (lim. inf.)'||s==='Ideal'||s==='Saudável (lim. sup.)')?'ok':null;
+  if(campo==='angv') return s==='Saudável'?'ok':s==='Atenção'?'atencao':s==='Elevado'?'risco':null;
+  if(campo==='anica') return s==='Risco baixo'?'ok':s==='Risco mod./alto'?'atencao':null;
+  if(campo==='anrce') return s==='Risco muito baixo'?'baixo':s==='Normal'?'ok':s==='Atenção'?'atencao':s==='Risco elevado'?'risco':null;
+  return null;
+}
+function ccTemDados(d){
+  return !!d && ['peso','altura','mm','mg','met','gv','cint','anca'].some(k=>d[k]!==undefined&&d[k]!==null&&String(d[k]).trim()!=='');
+}
+// Evolução de um teste FITescola (1.º valor disponível → último)
+function ccFitEvol(t,vals){
+  const arr=vals.map(v=>{
+    if(v===''||v===null||v===undefined) return null;
+    const n=t.id==='milha'?milhaToSec(v):parseFloat(String(v).replace(',','.'));
+    return (n===null||n===undefined||isNaN(n))?null:n;
+  }).filter(v=>v!==null);
+  if(arr.length<2) return null;
+  const a=arr[0], b=arr[arr.length-1];
+  if(a===b) return {s:'Manteve',c:'#475569',bg:'#e2e8f0'};
+  const melhor=t.higher?b>a:b<a;
+  return melhor?{s:'Melhorou',c:'#166534',bg:'#bbf7d0'}:{s:'Piorou',c:'#b91c1c',bg:'#fecaca'};
+}
+// Resultados FITescola de um aluno nos 3 momentos (AID, 1.º sem., 2.º sem.), com zona de referência por género/idade
+function ccFitDados(turma,nome,genero,dataNasc,idadeFallback){
+  const anoLetivo=parseInt((S.anoLetivo||'2025/26').split('/')[0]);
+  const idadeNum=calcIdade(dataNasc,anoLetivo);
+  const base=idadeNum!==null?idadeNum:idadeFallback;
+  const idadeClamp=(base===null||base===undefined)?null:Math.max(9,Math.min(18,base));
+  const ref=(genero==='M'||genero==='F')?(FITESCOLA_TB[genero]?.[idadeClamp]||FITESCOLA_TB[genero]?.[15]||null):null;
+  const out={ref,moms:{}};
+  [['aid','__fitescola','AID'],['s1','__fitescola1s','1º semestre'],['s2','__fitescola2s','2º semestre']].forEach(([k,suf,lab])=>{
+    const res=(S.avaliacao?.[`${turma.id}${suf}`]?.resultados?.[nome])||{};
+    const ev={};
+    FITESCOLA_TESTES.forEach(t=>{
+      const val=res[t.id]??'';
+      ev[t.id]={val, ev: ref?fitEval(val,ref[t.id],t.higher,t.id==='milha'):{badge:'',label:'—'}};
+    });
+    out.moms[k]={lab,ev,tem:FITESCOLA_TESTES.some(t=>String(ev[t.id].val).trim()!=='')};
+  });
+  return out;
+}
+function renderRelatorioCCModal(){
+  const {turmaId,nome}=modal;
+  const turma=S.turmas.find(t=>t.id==turmaId);
+  if(!turma) return '';
+  const alunoObj=turma.alunos.find(a=>(typeof a==='string'?a:a.nome)===nome);
+  const num=turma.alunos.findIndex(a=>(typeof a==='string'?a:a.nome)===nome)+1;
+  const genero=(typeof alunoObj==='object'?alunoObj.genero||'':'').toUpperCase();
+  const dados=S.avaliacao?.[`${turma.id}__compcorp`]||{};
+  const m1=(dados.m1&&dados.m1[nome])||{}, m2=(dados.m2&&dados.m2[nome])||{};
+  const comp=ccComputeRow(m1,m2,genero);
+  const tem1=ccTemDados(m1), tem2=ccTemDados(m2);
+  const mom=tem2?'m2':'m1';
+  const dAt=tem2?m2:m1, cAt=comp[mom];
+  const idadeAt=ccNum(dAt.idade)!==null?ccNum(dAt.idade):ccNum(m1.idade);
+  const dt1=ccFmtData(dados.datas&&dados.datas.m1), dt2=ccFmtData(dados.datas&&dados.datas.m2);
+  const f=v=>(v===''||v===null||v===undefined||(typeof v==='number'&&isNaN(v)))?'—':String(v).replace('.',',');
+  const f2=(v,d=2)=>(v===''||v===null||v===undefined||isNaN(v))?'—':Number(v).toFixed(d).replace('.',',');
+  const chip=r=>r?`<span class="ccr-chip" style="background:${r.bg};color:${r.c}">${esc(r.s)}</span>`:'';
+
+  // ── Tabela de resultados ──
+  const LINHAS=[
+    ['Peso / Altura','',d=>(ccNum(d.peso)===null&&ccNum(d.altura)===null)?'—':`${f(d.peso)} <span class="ccr-un">kg</span> · ${f(d.altura)} <span class="ccr-un">cm</span>`,null,null],
+    ['IMC','kg/m²',(d,c)=>f2(c.imc,1),null,'imc'],
+    ['% Massa gorda','%',d=>f(d.mg),'an','mg'],
+    ['% Massa muscular','%',d=>f(d.mm),null,'mm'],
+    ['Metabolismo de repouso','kcal',d=>f(d.met),null,null],
+    ['Gordura visceral','nível',d=>f(d.gv),'angv','gv'],
+    ['Cintura / Anca','',d=>(ccNum(d.cint)===null&&ccNum(d.anca)===null)?'—':`${f(d.cint)} <span class="ccr-un">cm</span> · ${f(d.anca)} <span class="ccr-un">cm</span>`,null,null],
+    ['ICA (cintura ÷ anca)','',(d,c)=>f2(c.ica),'anica','ica'],
+    ['RCE (cintura ÷ altura)','',(d,c)=>f2(c.rce),'anrce','rce']
+  ];
+  const linhasHtml=LINHAS.map(([lab,un,get,an,ev],i)=>{
+    const c1=get(m1,comp.m1), c2=get(m2,comp.m2);
+    const cel=(val,c,mm)=>`<td class="ccr-td"><div class="ccr-vc"><span class="ccr-v"><b>${val}</b>${val!=='—'&&un?` <span class="ccr-un">${un}</span>`:''}</span>${an&&val!=='—'?chip(comp[mm][an]):''}</div></td>`;
+    const evCell=ev&&comp.ev[ev]?chip(comp.ev[ev]):'';
+    return `<tr style="background:${i%2?'#fff':'#f8fafc'}"><td class="ccr-td ccr-lab">${lab}</td>${cel(c1,null,'m1')}${tem2?cel(c2,null,'m2'):''}${tem2?`<td class="ccr-td">${evCell}</td>`:''}</tr>`;
+  }).join('');
+
+  // ── Análise ──
+  const nMG=ccNivelDe('an',cAt.an), nGV=ccNivelDe('angv',cAt.angv), nICA=ccNivelDe('anica',cAt.anica), nRCE=ccNivelDe('anrce',cAt.anrce);
+  const alerta=nMG==='risco'||nGV==='atencao'||nGV==='risco'||nICA==='atencao'||nRCE==='atencao'||nRCE==='risco';
+  const blocos=[];
+
+  if(nMG){
+    const mg=f(dAt.mg)+'%';
+    let p='';
+    if(nMG==='ok') p=`A tua percentagem de massa gorda (${mg}) está dentro da faixa saudável para a tua idade e género${cAt.an.s==='Ideal'?', mesmo na faixa ideal':cAt.an.s==='Saudável (lim. sup.)'?', embora perto do limite superior, por isso convém manteres hábitos ativos':''}. A gordura corporal é necessária para a saúde; o importante é que esteja em equilíbrio.`;
+    else if(nMG==='risco') p=`A tua percentagem de massa gorda (${mg}) está acima da faixa saudável para a tua idade e género. Quando a gordura corporal se mantém elevada durante muito tempo, aumenta a probabilidade de, mais tarde, surgirem problemas como tensão arterial elevada e alterações do colesterol e dos açúcares no sangue. Na tua idade, o corpo responde muito bem a pequenas mudanças de hábitos.`;
+    else p=`A tua percentagem de massa gorda (${mg}) está abaixo da faixa de referência. Alguma gordura é essencial para a energia, as hormonas e o crescimento. Se sentires cansaço frequente ou tiveres dúvidas, fala com o médico de família.`;
+    blocos.push({t:'🧈 Gordura corporal',p});
+  }
+
+  const itensAbd=[];
+  if(nRCE){ const t={ok:'está na faixa normal (0,40 a 0,49)',atencao:'está na zona de atenção (0,50 a 0,59)',risco:'está na zona de risco elevado (0,60 ou mais)',baixo:'está abaixo de 0,40'}[nRCE]; itensAbd.push(`<li>O teu <b>RCE</b> (${f2(cAt.rce)}) ${t}.</li>`); }
+  if(nICA){ const t=nICA==='ok'?'está abaixo do limite de referência para a tua idade e género':'está a partir do limite de referência para a tua idade e género'; itensAbd.push(`<li>O teu <b>ICA</b> (${f2(cAt.ica)}) ${t}.</li>`); }
+  if(nGV){ const t={ok:'está num nível saudável (1 a 4)',atencao:'está num nível de atenção (5 a 6)',risco:'está num nível elevado (7 ou mais)'}[nGV]; itensAbd.push(`<li>A tua <b>gordura visceral</b> (nível ${f(dAt.gv)}) ${t}.</li>`); }
+  if(itensAbd.length){
+    const abdAlerta=nRCE==='atencao'||nRCE==='risco'||nICA==='atencao'||nGV==='atencao'||nGV==='risco';
+    const fecho=abdAlerta
+      ? 'A gordura na zona da barriga, sobretudo a visceral (em volta dos órgãos), é a que mais se relaciona com o risco cardiometabólico: pode contribuir para resistência à insulina (diabetes tipo 2), tensão arterial elevada, colesterol alterado e doença cardiovascular na vida adulta. São sinais para agires cedo, não um diagnóstico.'
+      : 'Os teus indicadores de gordura abdominal estão numa boa zona, o que é protetor para o coração e para o metabolismo.';
+    blocos.push({t:'🫀 Gordura abdominal e saúde do coração',p:`<ul class="ccr-ul">${itensAbd.join('')}</ul><div>${fecho}</div>`});
+  }
+
+  if(ccNum(dAt.mm)!==null||ccNum(dAt.met)!==null){
+    blocos.push({t:'💪 Músculo e metabolismo',p:`${ccNum(dAt.mm)!==null?`A tua massa muscular é de ${f(dAt.mm)}%. `:''}${ccNum(dAt.met)!==null?`O teu metabolismo de repouso estimado é de ${f(dAt.met)} kcal por dia (a energia que o corpo gasta só para funcionar). `:''}Ter músculo ajuda a controlar o açúcar no sangue, protege articulações e ossos e aumenta o gasto de energia — treinar a força faz bem à saúde.`});
+  }
+  if(cAt.imc!==''&&cAt.imc!==null&&cAt.imc!==undefined){
+    blocos.push({t:'⚖️ Sobre o IMC',p:`O teu IMC é ${f2(cAt.imc,1)} kg/m². O IMC é só uma referência geral: não distingue músculo de gordura. Na adolescência, lê-o sempre com os outros indicadores (massa gorda, cintura, RCE).`});
+  }
+
+  // ── Evolução ──
+  const evs=Object.values(comp.ev).filter(Boolean);
+  if(tem1&&tem2&&evs.length){
+    const a=evs.filter(e=>e.s==='Melhorou').length, b=evs.filter(e=>e.s==='Manteve').length, c=evs.filter(e=>e.s==='Piorou').length;
+    blocos.push({t:'📈 Evolução entre os dois momentos',p:`Dos ${evs.length} indicadores comparados, ${a} melhoraram, ${b} mantiveram-se e ${c} pioraram. Pequenas oscilações são normais na fase de crescimento; conta a tendência.`});
+  }
+
+  // ── FITescola (3 momentos) e cruzamento com a composição corporal ──
+  const dataNasc=typeof alunoObj==='object'?alunoObj.dataNasc||'':'';
+  const fit=ccFitDados(turma,nome,genero,dataNasc,idadeAt);
+  const temFit=Object.values(fit.moms).some(m=>m.tem);
+  const FIT_CHIP={pm:{s:'P. melhorar',c:'#b91c1c',bg:'#fecaca'},ok:{s:'Saudável',c:'#166534',bg:'#bbf7d0'},atl:{s:'Atlético',c:'#1d4ed8',bg:'#bfdbfe'}};
+  const fchip=b=>FIT_CHIP[b]?`<span class="ccr-chip" style="background:${FIT_CHIP[b].bg};color:${FIT_CHIP[b].c};margin:0">${FIT_CHIP[b].s}</span>`:'';
+  const fmtFit=(t,v)=>{
+    const x=String(v).trim();
+    if(t.id==='milha'){ const sec=milhaToSec(x); if(sec!==null) return Math.floor(sec/60)+':'+String(sec%60).padStart(2,'0'); }
+    return x.replace('.',',');
+  };
+  const fitLinhas=FITESCOLA_TESTES.map((t,i)=>{
+    const cel=k=>{
+      const x=fit.moms[k].ev[t.id]; const v=String(x.val).trim();
+      return `<td class="ccr-td">${v?`<div class="ccr-vc"><span class="ccr-v"><b>${esc(fmtFit(t,v))}</b> <span class="ccr-un">${t.unit}</span></span>${fchip(x.ev.badge)}</div>`:'<span style="color:#cbd5e1">—</span>'}</td>`;
+    };
+    const evc=ccFitEvol(t,['aid','s1','s2'].map(k=>fit.moms[k].ev[t.id].val));
+    return `<tr style="background:${i%2?'#fff':'#f8fafc'}"><td class="ccr-td ccr-lab">${t.label}</td>${cel('aid')}${cel('s1')}${cel('s2')}<td class="ccr-td">${evc?`<span class="ccr-chip" style="background:${evc.bg};color:${evc.c};margin:0">${evc.s}</span>`:''}</td></tr>`;
+  }).join('');
+
+  // Pares: composição 1º momento ↔ FITescola AID; composição 2º momento ↔ FITescola 2º semestre; senão, o par mais recente possível
+  let cruz=null;
+  if(temFit){
+    const pares=[];
+    if(tem2&&fit.moms.s2.tem) pares.push({cc:'m2',fm:'s2'});
+    if(tem1&&fit.moms.aid.tem) pares.push({cc:'m1',fm:'aid'});
+    const ultimoFit=['s2','s1','aid'].find(k=>fit.moms[k].tem);
+    pares.push({cc:mom,fm:ultimoFit});
+    for(const p of pares){
+      const c=comp[p.cc];
+      const nn=[ccNivelDe('an',c.an),ccNivelDe('angv',c.angv),ccNivelDe('anica',c.anica),ccNivelDe('anrce',c.anrce)];
+      if(!nn.some(x=>x)) continue;
+      const bd=['vaivem','milha'].map(id=>fit.moms[p.fm].ev[id].ev.badge).filter(Boolean);
+      if(!bd.length) continue;
+      cruz={p,nn,bd}; break;
+    }
+  }
+  let cruzHtml='';
+  if(temFit&&!cruz){
+    cruzHtml=`<span class="ccr-sec" style="background:#b45309">APTIDÃO FÍSICA + COMPOSIÇÃO CORPORAL</span><div class="ccr-nota" style="margin:0 0 6px">Ainda não há dados suficientes (vaivém ou milha, e indicadores de composição corporal) para cruzar a aptidão física com a composição corporal.</div>`;
+  } else if(cruz){
+    const [nMG2,nGV2,nICA2,nRCE2]=cruz.nn;
+    const elevada=nMG2==='risco'||nGV2==='atencao'||nGV2==='risco'||nICA2==='atencao'||nRCE2==='atencao'||nRCE2==='risco';
+    const baixa=cruz.bd.includes('pm');
+    const dtP=cruz.p.cc==='m1'?dt1:dt2;
+    const refTxt=`Comparação entre a composição corporal do ${cruz.p.cc==='m1'?'1º':'2º'} momento${dtP?' ('+dtP+')':''} e o FITescola ${fit.moms[cruz.p.fm].lab}.`;
+    let txt;
+    if(elevada&&baixa) txt='Neste momento, os indicadores de gordura abdominal estão acima do recomendado e a aptidão aeróbica (vaivém/milha) está abaixo da zona saudável. Esta combinação é muito comum na adolescência e é esperada: carregar mais gordura corporal torna a corrida mais pesada e, por sua vez, ter pouca aptidão dificulta gastar energia e controlar a gordura — os dois fatores alimentam-se um ao outro. A boa notícia é que a evidência científica mostra que melhorar a aptidão cardiorrespiratória reduz o risco cardiometabólico mesmo quando o peso demora a mudar. <b>Sugestão:</b> 3 a 4 vezes por semana, 20 a 30 minutos de caminhada rápida ou corrida leve, aumentando aos poucos, com alguns intervalos curtos mais intensos, e 2 sessões de exercícios de força com o peso do corpo.';
+    else if(elevada) txt='Apesar de a gordura abdominal estar acima do recomendado, a tua aptidão aeróbica (vaivém/milha) está numa zona boa — é um ponto forte. Uma boa aptidão cardiorrespiratória protege parcialmente o coração e o metabolismo, mesmo quando a gordura está mais elevada. Ainda assim, a gordura abdominal merece atenção. <b>Sugestão:</b> mantém a atividade aeróbica regular, junta treino de força e cuida do sono e da alimentação.';
+    else if(baixa) txt='Os teus indicadores de composição corporal estão numa boa zona, mas a aptidão aeróbica (vaivém/milha) está abaixo da zona saudável. A aptidão cardiorrespiratória treina-se e responde depressa. <b>Sugestão:</b> aumenta gradualmente a atividade aeróbica (caminhada rápida, corrida leve, bicicleta ou desportos coletivos) 3 a 4 vezes por semana.';
+    else txt='A tua composição corporal e a tua aptidão aeróbica estão ambas em boas zonas — uma combinação protetora para o coração e para o metabolismo. <b>Sugestão:</b> mantém a atividade regular e varia os estímulos (aeróbico, força e desportos).';
+    const musc=['abdom','flexBracos','iHoriz'].map(id=>fit.moms[cruz.p.fm].ev[id].ev.badge).filter(Boolean);
+    if(musc.length>=2&&musc.filter(b=>b==='pm').length>=2) txt+=' Alguns testes de força também estão abaixo da zona saudável: 2 sessões por semana de exercícios com o peso do corpo (agachamentos, flexões adaptadas, prancha) ajudam o desempenho e o metabolismo.';
+    const evAer=['vaivem','milha'].map(id=>{const t=FITESCOLA_TESTES.find(x=>x.id===id); return ccFitEvol(t,['aid','s1','s2'].map(k=>fit.moms[k].ev[id].val));}).filter(Boolean);
+    if(evAer.some(e=>e.s==='Melhorou')&&!evAer.some(e=>e.s==='Piorou')) txt+=' Ao longo do ano, a tua aptidão aeróbica melhorou — o treino está a dar resultados!';
+    else if(evAer.some(e=>e.s==='Piorou')&&!evAer.some(e=>e.s==='Melhorou')) txt+=' Ao longo do ano, o resultado aeróbico desceu um pouco; as oscilações são normais e retomam-se com regularidade.';
+    cruzHtml=`<span class="ccr-sec" style="background:#b45309">APTIDÃO FÍSICA + COMPOSIÇÃO CORPORAL</span>
+      <div class="ccr-card ccr-cross"><div class="ccr-card-p">${txt}</div>
+      <div style="font-size:8.5px;color:#94a3b8;margin-top:3px">${refTxt} Esta leitura mostra uma associação entre os dois, não uma relação de causa e efeito.</div></div>`;
+  }
+
+  // ── Recomendações ──
+  const recs=[];
+  if(alerta){
+    recs.push('<b>Ponto de atenção:</b> o exercício aeróbico regular (corrida, bicicleta, natação, desportos coletivos) reduz a gordura abdominal e visceral mesmo quando o peso na balança muda pouco. Aumenta a atividade de forma gradual e constante.');
+    recs.push('<b>Fala com o teu encarregado de educação</b> e, se possível, com o médico de família, para uma avaliação mais completa (tensão arterial, colesterol, glicemia). Podes também falar com o teu professor de Educação Física.');
+  }
+  recs.push('<b>Mexe-te todos os dias:</b> pelo menos 60 minutos por dia de atividade moderada a intensa (média semanal), com reforço muscular e ósseo em 3 ou mais dias (saltos, corrida, exercícios com o peso do corpo) — recomendação da OMS.');
+  recs.push('<b>Dorme 8 a 10 horas</b> por noite (dormir pouco associa-se a mais gordura abdominal) e <b>reduz o tempo sentado</b>, com pausas ativas.');
+  recs.push('<b>Come de forma variada:</b> mais fruta, legumes, leguminosas, cereais integrais e água; menos refrigerantes, sumos açucarados e ultraprocessados. Sem dietas restritivas.');
+
+  const temAlgo=tem1||tem2;
+  const header=(pequeno)=>`<div class="ccr-header${pequeno?' ccr-header-p':''}">
+      <div style="display:flex;align-items:center;gap:12px">
+        ${S.logo&&!pequeno?`<img src="${S.logo}" alt="Logotipo" style="height:48px;width:auto;max-width:90px;object-fit:contain;flex-shrink:0">`:''}
+        <div style="flex:1">
+          <div class="ccr-titulo">Relatório de Composição Corporal</div>
+          <div class="ccr-sub">${esc(S.escola||'Escola')} · Educação Física ${esc(S.anoLetivo||'')} · Prof. ${esc(S.professor||'')}</div>
+        </div>
+      </div>
+      <div class="ccr-aluno">
+        <div class="nome">${esc(nome)}</div>
+        <div class="meta">${esc(turma.nome)} &nbsp;·&nbsp; Nº ${num} &nbsp;·&nbsp; ${idadeAt!==null?idadeAt+' anos':'idade —'} &nbsp;·&nbsp; ${genero==='M'?'Masculino':genero==='F'?'Feminino':'género —'}</div>
+      </div>
+    </div>`;
+
+  return `<div class="modal-overlay" id="modalOverlay"><div class="modal" style="width:min(95vw,900px);max-width:900px;max-height:92vh;padding:0;overflow:hidden;display:flex;flex-direction:column">
+    <style>
+      .ccr-wrap{padding:14px 16px;overflow-y:auto;flex:1;background:#f1f5f9}
+      .cc-pagina{background:#fff;padding:16px 24px;box-sizing:border-box}
+      .ccr-header{display:flex;align-items:center;justify-content:space-between;border-bottom:2px solid #1a2d4a;padding-bottom:8px;margin-bottom:8px}
+      .ccr-titulo{font-size:15px;font-weight:800;color:#1a2d4a;text-align:center}
+      .ccr-sub{font-size:10px;color:#64748b;margin-top:1px;text-align:center}
+      .ccr-aluno{background:#1a2d4a;color:#fff;padding:5px 14px;border-radius:7px;text-align:right;min-height:44px;box-sizing:border-box;display:flex;flex-direction:column;justify-content:center;flex-shrink:0}
+      .ccr-aluno .nome{font-size:13px;font-weight:700}
+      .ccr-aluno .meta{font-size:9.5px;opacity:.75;margin-top:1px}
+      .ccr-sec{font-size:9.5px;font-weight:700;color:#fff;padding:2px 9px;border-radius:4px;display:inline-block;margin:8px 0 5px}
+      .ccr-table{width:100%;border-collapse:collapse;font-size:10.5px}
+      .ccr-table th{background:#1a2d4a;color:#fff;font-size:10px;font-weight:700;padding:3px 7px;text-align:left}
+      .ccr-td{border:1px solid #e2e8f0;padding:2.5px 7px;vertical-align:middle;color:#1a2d4a;line-height:1.25}
+      .ccr-lab{font-weight:600;color:#475569;font-size:10px}
+      .ccr-un{font-size:8.5px;color:#94a3b8}
+      .ccr-chip{font-size:9px;font-weight:700;padding:1px 7px;border-radius:9px;display:inline-block}
+      .ccr-vc{display:flex;align-items:center;gap:6px;white-space:nowrap}
+      .ccr-v{display:inline-block;min-width:74px}
+      .ccr-vc .ccr-chip{margin:0;min-width:80px;text-align:center;box-sizing:border-box}
+      .ccr-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:9px}
+      .ccr-card{background:#f1f6fb;border:1px solid #d3deeb;border-left:3px solid #1a2d4a;border-radius:7px;padding:8px 11px;box-shadow:0 2px 5px rgba(15,23,42,.14)}
+      .ccr-cross{background:#fff8e6;border-color:#f3d9a0;border-left-color:#b45309}
+      .ccr-recbox{background:#f6f2fd;border:1px solid #ddd0f5;border-left:3px solid #7c3aed;border-radius:7px;padding:8px 11px 7px 7px;box-shadow:0 2px 5px rgba(15,23,42,.14)}
+      .ccr-card-t{font-size:10.8px;font-weight:700;color:#1a2d4a;margin-bottom:5px}
+      .ccr-card-p{font-size:9.7px;color:#374151;line-height:1.45}
+      .ccr-ul{margin:0 0 3px;padding-left:14px}
+      .ccr-rec{font-size:9.7px;color:#374151;line-height:1.45;margin:0;padding-left:14px}
+      .ccr-nota{font-size:8.5px;color:#64748b;line-height:1.4;background:#f8fafc;border-left:3px solid #94a3b8;padding:8px 12px;border-radius:0 6px 6px 0;margin-top:8px;box-shadow:0 2px 5px rgba(15,23,42,.10)}
+      .ccr-footer{border-top:1px solid #e2e8f0;padding-top:6px;display:flex;justify-content:space-between;margin-top:10px}
+      .ccr-footer span{font-size:8.5px;color:#94a3b8}
+    </style>
+    <div class="ccr-wrap" id="relatorioPageContent">
+      <div class="cc-pagina">
+        ${header(false)}
+        ${temAlgo?`<span class="ccr-sec" style="background:#0369a1">OS TEUS RESULTADOS</span>
+        <table class="ccr-table">
+          <thead><tr><th style="width:30%">Indicador</th><th>1º momento${dt1?`<br><span style="font-weight:400;opacity:.8">${dt1}</span>`:''}</th>${tem2?`<th>2º momento${dt2?`<br><span style="font-weight:400;opacity:.8">${dt2}</span>`:''}</th><th>Evolução</th>`:''}</tr></thead>
+          <tbody>${linhasHtml}</tbody>
+        </table>
+        <div style="font-size:8.5px;color:#94a3b8;margin-top:3px">Referências: tabelas de % de massa gorda, ICA e RCE para adolescentes, por género e idade.${!tem1?' (Ainda sem dados do 1º momento.)':''}</div>`
+        :`<div class="ccr-nota" style="margin-top:20px">Ainda não há dados de composição corporal preenchidos para este aluno.</div>`}
+        ${temFit?`<span class="ccr-sec" style="background:#0f766e">APTIDÃO FÍSICA — FITESCOLA</span>
+        <table class="ccr-table">
+          <thead><tr><th style="width:22%">Teste</th><th>AID</th><th>1º semestre</th><th>2º semestre</th><th style="width:11%">Evolução</th></tr></thead>
+          <tbody>${fitLinhas}</tbody>
+        </table>
+        <div style="font-size:8.5px;color:#94a3b8;margin-top:3px">Zonas de referência FITescola por género e idade. Evolução: do primeiro ao último momento com resultado.</div>`:''}
+      ${temAlgo?`
+        <span class="ccr-sec" style="background:#0f766e">O QUE OS TEUS RESULTADOS INDICAM</span>
+        <div class="ccr-grid">${blocos.map(b=>`<div class="ccr-card"${b.t.includes('abdominal')?' style="grid-column:span 2"':''}><div class="ccr-card-t">${b.t}</div><div class="ccr-card-p">${b.p}</div></div>`).join('')}</div>
+        ${cruzHtml}
+        <span class="ccr-sec" style="background:#7c3aed">O QUE PODES FAZER</span>
+        <div class="ccr-recbox"><ul class="ccr-rec">${recs.map(r=>`<li style="margin-bottom:3px">${r}</li>`).join('')}</ul></div>
+        <div class="ccr-nota"><b>Importante:</b> este relatório resulta de medições e de tabelas de referência para adolescentes e serve para te informar e motivar. Não é um diagnóstico médico nem substitui a consulta com um profissional de saúde. O objetivo é a tua saúde e bem-estar — não o peso nem a aparência.</div>
+        <div class="ccr-footer"><span>${esc(S.escola||'')} · Educação Física · ${esc(S.anoLetivo||'')}</span><span>Relatório de Composição Corporal</span><span>Gerado pelo Dossier EF</span></div>
+`:''}
+      </div>
+    </div>
+    <div class="modal-actions" style="padding:12px 24px;border-top:1px solid var(--border)">
+      <button class="btn rel-close-btn" onclick="modal=null;render();">Fechar</button>
+      <button class="btn btn-primary" id="relatorioExportPdfBtn">📄 Exportar PDF</button>
+    </div>
+  </div></div>`;
+}
+
 function renderGrelhaObsModal(){
   const turma=S.turmas.find(t=>t.id==modal.turmaId);
   if(!turma) return '';
@@ -6767,6 +7069,7 @@ function renderModal(){
   if(modal.type==='grelhaObs') return renderGrelhaObsModal();
   if(modal.type==='detalheFaltas') return renderDetalheFaltasModal();
   if(modal.type==='relatorioAluno') return renderRelatorioAlunoModal();
+  if(modal.type==='relatorioCC') return renderRelatorioCCModal();
   if(modal.type==='editAula'){
     const aula=S.horario[modal.slot]||{};
     const weekKey=modal.weekKey||'';
@@ -7468,7 +7771,7 @@ function attachEvents(){
       const v=el.value.trim();
       S.avaliacao[key][mom][nome][campo]=v===''?'':parseFloat(v);
       const row=el.closest('tr');
-      if(row) ccRefreshRow(row); // IMC, ICA, análises e evolução, sem re-render (mantém o foco e o scroll)
+      if(row) ccRefreshRow(row); // IMC, ICA, RCE, análises e evolução, sem re-render (mantém o foco e o scroll)
       save();
     });
   });
@@ -7849,6 +8152,12 @@ function attachEvents(){
       render();
     });
   });
+  document.querySelectorAll('.cc-nome-link').forEach(el=>{
+    el.addEventListener('click',()=>{
+      modal={type:'relatorioCC', turmaId:parseInt(el.dataset.turma), nome:el.dataset.nome};
+      render();
+    });
+  });
   const relatorioExportPdfBtn=document.getElementById('relatorioExportPdfBtn');
   if(relatorioExportPdfBtn) relatorioExportPdfBtn.addEventListener('click', async()=>{
     const btn=relatorioExportPdfBtn;
@@ -7872,22 +8181,27 @@ function attachEvents(){
       if(modalBox){ modalBox.style.maxHeight='none'; modalBox.style.overflow='visible'; }
       if(target){ target.style.overflow='visible'; target.style.maxHeight='none'; }
       await new Promise(r=>setTimeout(r,50));
-      const canvas=await html2canvas(target,{
-        scale:2, backgroundColor:'#ffffff', useCORS:true,
-        height:target.scrollHeight, windowHeight:target.scrollHeight
-      });
-      const imgData=canvas.toDataURL('image/jpeg',0.95);
       const {jsPDF}=window.jspdf;
       const pdf=new jsPDF('p','mm','a4');
       const pageW=210, pageH=297, margin=8;
       const maxW=pageW-margin*2, maxH=pageH-margin*2;
-      const ratio=canvas.width/canvas.height;
-      let finalW=maxW, finalH=maxW/ratio;
-      if(finalH>maxH){ finalH=maxH; finalW=maxH*ratio; }
-      const offsetX=margin+(maxW-finalW)/2;
-      pdf.addImage(imgData,'JPEG',offsetX,margin,finalW,finalH,undefined,'FAST');
+      const elems=(modal?.type==='relatorioCC')?[...target.querySelectorAll('.cc-pagina')]:[target];
+      for(let pi=0;pi<elems.length;pi++){
+        const el=elems[pi];
+        const canvas=await html2canvas(el,{
+          scale:2, backgroundColor:'#ffffff', useCORS:true,
+          height:el.scrollHeight, windowHeight:el.scrollHeight
+        });
+        const imgData=canvas.toDataURL('image/jpeg',0.95);
+        const ratio=canvas.width/canvas.height;
+        let finalW=maxW, finalH=maxW/ratio;
+        if(finalH>maxH){ finalH=maxH; finalW=maxH*ratio; }
+        const offsetX=margin+(maxW-finalW)/2;
+        if(pi>0) pdf.addPage();
+        pdf.addImage(imgData,'JPEG',offsetX,margin,finalW,finalH,undefined,'FAST');
+      }
       const nomeAluno=(modal?.nome||'aluno').replace(/[^\wÀ-ÿ]+/g,'_');
-      pdf.save(`Relatorio_AID_${nomeAluno}.pdf`);
+      pdf.save(`${modal?.type==='relatorioCC'?'Relatorio_ComposicaoCorporal':'Relatorio_AID'}_${nomeAluno}.pdf`);
     }catch(err){
       alert('Erro ao gerar PDF: '+err.message);
     }finally{
