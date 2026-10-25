@@ -4512,15 +4512,15 @@ function renderComposicaoCorporal(turma){
       if(tipo==='in') return `<td style="padding:3px 3px;border:1px solid var(--border);background:${bg}">${inp(mom,nome,campo,d[campo],step)}</td>`;
       return calcCell(campo,mom,TINT[mom],tipo==='rich');
     };
-    const celM1=COLS.map(s=>cellFor(s,'m1',m1)).join('');
+    const celM1=`<td style="padding:3px 3px;border:1px solid var(--border);background:${bg}">${inp('m1',nome,'idade',m1.idade,1)}</td>`
+      +COLS.map(s=>cellFor(s,'m1',m1)).join('');
     const celM2=`<td style="padding:3px 3px;border:1px solid var(--border);background:${bg}">${inp('m2',nome,'idade',m2.idade,1,m1.idade?String(m1.idade):'—')}</td>`
       +COLS.map(s=>cellFor(s,'m2',m2)).join('')
       +EVS.map(([campo])=>calcCell(campo,'m2',TINT.ev,true)).join('');
     return `<tr style="background:${bg}" data-gen="${genero}">
       <td style="width:36px;min-width:36px;box-sizing:border-box;padding:5px 4px;border:1px solid var(--border);text-align:center;color:var(--gray);font-weight:600;position:sticky;left:0;z-index:3;background:${bg}">${i+1}</td>
       <td style="width:120px;min-width:120px;max-width:120px;box-sizing:border-box;padding:5px 8px;border:1px solid var(--border);font-weight:600;color:var(--navy);font-size:12px;line-height:1.2;position:sticky;left:36px;z-index:3;background:${bg}">${esc(nome)}</td>
-      <td style="width:44px;min-width:44px;box-sizing:border-box;padding:5px 4px;border:1px solid var(--border);text-align:center;font-weight:600;color:var(--navy);position:sticky;left:156px;z-index:3;background:${bg}">${genLabel}</td>
-      <td style="width:54px;min-width:54px;box-sizing:border-box;padding:3px 3px;border:1px solid var(--border);position:sticky;left:200px;z-index:3;background:${bg};box-shadow:3px 0 5px -1px rgba(0,0,0,0.15)">${inp('m1',nome,'idade',m1.idade,1)}</td>
+      <td style="width:44px;min-width:44px;box-sizing:border-box;padding:5px 4px;border:1px solid var(--border);text-align:center;font-weight:600;color:var(--navy);position:sticky;left:156px;z-index:3;background:${bg};box-shadow:3px 0 5px -1px rgba(0,0,0,0.15)">${genLabel}</td>
       ${celM1}${celM2}
     </tr>`;
   }).join('');
@@ -4529,14 +4529,14 @@ function renderComposicaoCorporal(turma){
     const dt=(dados.datas&&dados.datas[mom])||'';
     return `<input type="date" class="cc-data" data-turma="${turma.id}" data-mom="${mom}" value="${esc(dt)}" title="Data desta avaliação" style="margin-left:8px;font-size:11px;border:1px solid var(--border);border-radius:4px;padding:2px 4px;background:#fff;color:var(--navy)">`;
   };
-  const g1=`<th colspan="${COLS.length}" style="${thBase};top:0;height:38px;background:#dbeafe;color:#1d4ed8;text-align:center;font-size:13px;padding:3px 6px">1º Momento ${dataIn('m1')}</th>`;
+  const g1=`<th colspan="${COLS.length+1}" style="${thBase};top:0;height:38px;background:#dbeafe;color:#1d4ed8;text-align:center;font-size:13px;padding:3px 6px">1º Momento ${dataIn('m1')}</th>`;
   const g2=`<th colspan="${COLS.length+1}" style="${thBase};top:0;height:38px;background:#dcfce7;color:#16a34a;text-align:center;font-size:13px;padding:3px 6px">2º Momento ${dataIn('m2')}</th>`;
   const g3=`<th colspan="${EVS.length}" style="${thBase};top:0;height:38px;background:#ede9fe;color:#6d28d9;text-align:center;font-size:13px;padding:3px 6px">Evolução vs 1º momento</th>`;
   const hc=(label,unid,bgc,col)=>`<th style="${thBase};top:38px;background:${bgc};color:${col};text-align:center;font-size:10px;padding:4px 2px;min-width:68px;line-height:1.2">${label}${unid?`<br><span style="font-weight:400;opacity:0.75">(${unid})</span>`:''}</th>`;
-  const h1=COLS.map(([,l,u])=>hc(l,u,'#dbeafe','#1d4ed8')).join('');
+  const h1=hc('Idade<br>dia do teste','anos','#dbeafe','#1d4ed8')+COLS.map(([,l,u])=>hc(l,u,'#dbeafe','#1d4ed8')).join('');
   const h2=hc('Idade<br>dia do teste','anos','#dcfce7','#16a34a')+COLS.map(([,l,u])=>hc(l,u,'#dcfce7','#16a34a')).join('');
   const h3=EVS.map(([,l])=>hc('Evolução<br>'+l,'','#ede9fe','#6d28d9')).join('');
-  const nCols=4+COLS.length*2+1+EVS.length;
+  const nCols=3+(COLS.length+1)*2+EVS.length;
   const chip=(t,bgc,col)=>`<span style="background:${bgc};color:${col};font-weight:700;border-radius:4px;padding:2px 8px">${t}</span>`;
 
   return `<div class="card" style="margin-bottom:12px">
@@ -4548,8 +4548,7 @@ function renderComposicaoCorporal(turma){
           <tr>
             <th rowspan="2" style="${thBase};top:0;left:0;width:36px;min-width:36px;box-sizing:border-box;padding:8px 6px;text-align:center;z-index:12">#</th>
             <th rowspan="2" style="${thBase};top:0;left:36px;width:120px;min-width:120px;box-sizing:border-box;padding:8px 10px;text-align:left;z-index:12">Nome</th>
-            <th rowspan="2" style="${thBase};top:0;left:156px;width:44px;min-width:44px;box-sizing:border-box;padding:8px 4px;text-align:center;z-index:12">Gén.</th>
-            <th rowspan="2" title="Idade no dia do teste (1º momento) — escrever à mão" style="${thBase};top:0;left:200px;width:54px;min-width:54px;box-sizing:border-box;padding:8px 4px;text-align:center;z-index:12;box-shadow:3px 0 5px -1px rgba(0,0,0,0.25)">Idade</th>
+            <th rowspan="2" style="${thBase};top:0;left:156px;width:44px;min-width:44px;box-sizing:border-box;padding:8px 4px;text-align:center;z-index:12;box-shadow:3px 0 5px -1px rgba(0,0,0,0.25)">Gén.</th>
             ${g1}${g2}${g3}
           </tr>
           <tr>${h1}${h2}${h3}</tr>
