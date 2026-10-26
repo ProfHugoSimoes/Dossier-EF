@@ -1179,10 +1179,10 @@ function renderAvaliacao(){
       + subPastas.map((s,idx)=>{
           const active=filterAvaliacaoSub===s.id;
           const total=subPastas.length;
-          // últimos 2 botões partilham a última linha (cada um ocupa 1 de 2 colunas num subgrid)
+          // FICHA AA ocupa sempre a última linha inteira; os restantes fluem em 3 colunas
           const isSecondLast=idx===total-2;
           const isLast=idx===total-1;
-          const colStyle=isSecondLast?'grid-column:1/2;':(isLast?'grid-column:2/4;':'');
+          const colStyle=(s.id==='fichaaa')?'grid-column:1/-1;':'';
           const isFichaAA=s.id==='fichaaa';
           const bgActive=isFichaAA?'#7c3aed':'var(--blue)';
           const borderActive=isFichaAA?'#7c3aed':'var(--blue)';
@@ -4513,6 +4513,7 @@ function renderComposicaoCorporal(turma){
   const EVS=[['ev_imc','IMC'],['ev_mg','M. Gorda'],['ev_mm','M. Muscular'],['ev_gv','G. Visceral'],['ev_ica','ICA'],['ev_rce','RCE']];
   const TINT={m1:'#f0f9ff',m2:'#f0fdf4',ev:'#faf5ff'};
   const inp=(mom,nome,campo,val,step,ph)=>`<input type="number" step="${step}" min="0" class="cc-in" data-turma="${turma.id}" data-nome="${esc(nome)}" data-mom="${mom}" data-campo="${campo}" value="${esc(String(val==null?'':val))}" placeholder="${esc(ph||'—')}" style="width:100%;box-sizing:border-box;text-align:center;border:1px solid var(--border);border-radius:4px;padding:4px 2px;font-size:12px;font-weight:600;background:#fff;color:var(--navy);outline:none">`;
+  const mob=isMobile(); // no telemóvel só o # e o Nome ficam fixos; o Género desliza
   const thBase='color:#fff;font-weight:600;border:1px solid rgba(255,255,255,0.15);position:sticky;z-index:10;background:var(--navy)';
 
   const rows=(turma.alunos||[]).map((a,i)=>{
@@ -4538,8 +4539,8 @@ function renderComposicaoCorporal(turma){
       +EVS.map(([campo])=>calcCell(campo,'m2',TINT.ev,true)).join('');
     return `<tr style="background:${bg}" data-gen="${genero}">
       <td style="width:36px;min-width:36px;box-sizing:border-box;padding:5px 4px;border:1px solid var(--border);text-align:center;color:var(--gray);font-weight:600;position:sticky;left:0;z-index:3;background:${bg}">${i+1}</td>
-      <td style="width:120px;min-width:120px;max-width:120px;box-sizing:border-box;padding:5px 8px;border:1px solid var(--border);font-weight:600;color:var(--navy);font-size:12px;line-height:1.2;position:sticky;left:36px;z-index:3;background:${bg}"><a href="javascript:void(0)" class="cc-nome-link" data-turma="${turma.id}" data-nome="${esc(nome)}" style="color:#2563eb;text-decoration:underline;cursor:pointer" title="Ver relatório do aluno">${esc(nome)}</a></td>
-      <td style="width:44px;min-width:44px;box-sizing:border-box;padding:5px 4px;border:1px solid var(--border);text-align:center;font-weight:600;color:var(--navy);position:sticky;left:156px;z-index:3;background:${bg};box-shadow:3px 0 5px -1px rgba(0,0,0,0.15)">${genLabel}</td>
+      <td style="width:120px;min-width:120px;max-width:120px;box-sizing:border-box;padding:5px 8px;border:1px solid var(--border);font-weight:600;color:var(--navy);font-size:12px;line-height:1.2;position:sticky;left:36px;z-index:3;background:${bg}${mob?';box-shadow:3px 0 5px -1px rgba(0,0,0,0.15)':''}"><a href="javascript:void(0)" class="cc-nome-link" data-turma="${turma.id}" data-nome="${esc(nome)}" style="color:#2563eb;text-decoration:underline;cursor:pointer" title="Ver relatório do aluno">${esc(nome)}</a></td>
+      <td style="width:44px;min-width:44px;box-sizing:border-box;padding:5px 4px;border:1px solid var(--border);text-align:center;font-weight:600;color:var(--navy);${mob?'':'position:sticky;left:156px;z-index:3;box-shadow:3px 0 5px -1px rgba(0,0,0,0.15);'}background:${bg}">${genLabel}</td>
       ${celM1}${celM2}
     </tr>`;
   }).join('');
@@ -4566,8 +4567,8 @@ function renderComposicaoCorporal(turma){
         <thead>
           <tr>
             <th rowspan="2" style="${thBase};top:0;left:0;width:36px;min-width:36px;box-sizing:border-box;padding:8px 6px;text-align:center;z-index:12">#</th>
-            <th rowspan="2" style="${thBase};top:0;left:36px;width:120px;min-width:120px;box-sizing:border-box;padding:8px 10px;text-align:left;z-index:12">Nome</th>
-            <th rowspan="2" style="${thBase};top:0;left:156px;width:44px;min-width:44px;box-sizing:border-box;padding:8px 4px;text-align:center;z-index:12;box-shadow:3px 0 5px -1px rgba(0,0,0,0.25)">Gén.</th>
+            <th rowspan="2" style="${thBase};top:0;left:36px;width:120px;min-width:120px;box-sizing:border-box;padding:8px 10px;text-align:left;z-index:12${mob?';box-shadow:3px 0 5px -1px rgba(0,0,0,0.25)':''}">Nome</th>
+            <th rowspan="2" style="${thBase};top:0;${mob?'':'left:156px;'}width:44px;min-width:44px;box-sizing:border-box;padding:8px 4px;text-align:center;z-index:${mob?9:12}${mob?'':';box-shadow:3px 0 5px -1px rgba(0,0,0,0.25)'}">Gén.</th>
             ${g1}${g2}${g3}
           </tr>
           <tr>${h1}${h2}${h3}</tr>
@@ -11496,8 +11497,8 @@ function trRenderJogosTab(split) {
       <button class="btn" id="tr-timer-pause-btn" onclick="trTimerPause()" style="width:100%;justify-content:center;font-size:14px;padding:11px;border-radius:10px;background:rgba(217,119,6,0.2);color:#fbbf24;border-color:rgba(217,119,6,0.4)">⏸ Intervalo</button>
       <button class="btn btn-sm" onclick="trTimerReset()" style="width:100%;justify-content:center;border-radius:10px;background:rgba(255,255,255,0.07);color:rgba(255,255,255,0.5);border-color:rgba(255,255,255,0.12)">↺ Reiniciar</button>
       <div style="display:flex;gap:6px;width:100%">
-        <button class="btn btn-sm" onclick="trTimerTestSound('start')" style="flex:1;justify-content:center;font-size:11px;padding:6px;border-radius:8px;background:rgba(255,255,255,0.07);color:rgba(255,255,255,0.6);border-color:rgba(255,255,255,0.12)">🔊 Testar início</button>
-        <button class="btn btn-sm" onclick="trTimerTestSound('end')" style="flex:1;justify-content:center;font-size:11px;padding:6px;border-radius:8px;background:rgba(255,255,255,0.07);color:rgba(255,255,255,0.6);border-color:rgba(255,255,255,0.12)">🔊 Testar fim</button>
+        <button type="button" class="btn btn-sm" onclick="trTimerTestSound('start')" style="touch-action:manipulation;cursor:pointer;flex:1;justify-content:center;font-size:11px;padding:6px;border-radius:8px;background:rgba(255,255,255,0.07);color:rgba(255,255,255,0.6);border-color:rgba(255,255,255,0.12)">🔊 Buzina de início</button>
+        <button type="button" class="btn btn-sm" onclick="trTimerTestSound('end')" style="touch-action:manipulation;cursor:pointer;flex:1;justify-content:center;font-size:11px;padding:6px;border-radius:8px;background:rgba(255,255,255,0.07);color:rgba(255,255,255,0.6);border-color:rgba(255,255,255,0.12)">🔊 Buzina de fim</button>
       </div>
     </div>
 
@@ -11550,8 +11551,8 @@ function trRenderJogosTab(split) {
         </div>
         <!-- Testar sons -->
         <div style="display:flex;gap:6px;width:100%">
-          <button class="btn btn-sm" onclick="trTimerTestSound('start')" style="flex:1;justify-content:center;font-size:10px;padding:5px;border-radius:7px;background:rgba(255,255,255,0.07);color:rgba(255,255,255,0.6);border-color:rgba(255,255,255,0.12)">🔊 Testar início</button>
-          <button class="btn btn-sm" onclick="trTimerTestSound('end')" style="flex:1;justify-content:center;font-size:10px;padding:5px;border-radius:7px;background:rgba(255,255,255,0.07);color:rgba(255,255,255,0.6);border-color:rgba(255,255,255,0.12)">🔊 Testar fim</button>
+          <button type="button" class="btn btn-sm" onclick="trTimerTestSound('start')" style="touch-action:manipulation;cursor:pointer;flex:1;justify-content:center;font-size:10px;padding:5px;border-radius:7px;background:rgba(255,255,255,0.07);color:rgba(255,255,255,0.6);border-color:rgba(255,255,255,0.12)">🔊 Buzina de início</button>
+          <button type="button" class="btn btn-sm" onclick="trTimerTestSound('end')" style="touch-action:manipulation;cursor:pointer;flex:1;justify-content:center;font-size:10px;padding:5px;border-radius:7px;background:rgba(255,255,255,0.07);color:rgba(255,255,255,0.6);border-color:rgba(255,255,255,0.12)">🔊 Buzina de fim</button>
         </div>
       </div>`;
 
@@ -12371,7 +12372,7 @@ function trPlayHornBlast(freqs, vols, dur, delay) {
 
     osc.connect(dist);
     dist.connect(gain);
-    gain.connect(ctx.destination);
+    gain.connect(_trTimer.buzzMaster||ctx.destination);
     osc.start(t0);
     osc.stop(t0 + dur);
   });
@@ -12410,7 +12411,7 @@ function trPlayBasketballBuzzer() {
 
     osc.connect(dist);
     dist.connect(gain);
-    gain.connect(ctx.destination);
+    gain.connect(_trTimer.buzzMaster||ctx.destination);
     osc.start(t0);
     osc.stop(t0 + dur);
   });
@@ -12433,24 +12434,46 @@ function trPlayBasketballBuzzer() {
   noiseGain.gain.linearRampToValueAtTime(0, t0 + dur);
   noise.connect(noiseFilter);
   noiseFilter.connect(noiseGain);
-  noiseGain.connect(ctx.destination);
+  noiseGain.connect(_trTimer.buzzMaster||ctx.destination);
   noise.start(t0);
   noise.stop(t0 + dur);
 }
 
 // Apito de "início" — um único blast curto e agudo (soa a apito de arranque).
 // Apito de "fim" — buzina de basquetebol sustida (~2s).
+// Corta de imediato a buzina que esteja a tocar (permite voltar a clicar a qualquer momento)
+function trBuzzStop() {
+  const ctx = _trTimer.audioCtx, m = _trTimer.buzzMaster;
+  if (!ctx || !m) return;
+  try {
+    const now = ctx.currentTime;
+    m.gain.cancelScheduledValues(now);
+    m.gain.setValueAtTime(m.gain.value, now);
+    m.gain.linearRampToValueAtTime(0, now + 0.03);
+    setTimeout(() => { try { m.disconnect(); } catch(e) {} }, 120);
+  } catch(e) {}
+  _trTimer.buzzMaster = null;
+}
+
 function trTimerBuzzer(kind) {
   try {
     // Reutilizar contexto existente (criado no gesto do utilizador) — obrigatório em mobile
     if (!_trTimer.audioCtx) return;
-    if (_trTimer.audioCtx.state === 'suspended') _trTimer.audioCtx.resume();
-
-    if (kind === 'start') {
-      trPlayHornBlast([700, 933], [0.4, 0.22], 1.0, 0);
-    } else {
-      trPlayBasketballBuzzer();
-    }
+    const ctx = _trTimer.audioCtx;
+    const go = () => {
+      try {
+        trBuzzStop();                       // cada clique recomeça a buzina do zero
+        _trTimer.buzzMaster = ctx.createGain();
+        _trTimer.buzzMaster.connect(ctx.destination);
+        if (kind === 'start') {
+          trPlayHornBlast([700, 933], [0.4, 0.22], 1.0, 0);
+        } else {
+          trPlayBasketballBuzzer();
+        }
+      } catch(e) {}
+    };
+    if (ctx.state === 'suspended') ctx.resume().then(go).catch(go);
+    else go();
   } catch(e) {}
 }
 
@@ -12485,10 +12508,8 @@ function trTimerTick() {
 function trTimerTestSound(kind) {
   // Mesmo desbloqueio de AudioContext que o "Iniciar" — obrigatório em mobile,
   // tem de acontecer dentro do próprio gesto de toque do utilizador.
-  if (!_trTimer.audioCtx) {
+  if (!_trTimer.audioCtx || _trTimer.audioCtx.state === 'closed') {
     _trTimer.audioCtx = new (window.AudioContext || window.webkitAudioContext)();
-  } else if (_trTimer.audioCtx.state === 'suspended') {
-    _trTimer.audioCtx.resume();
   }
   trTimerBuzzer(kind);
 }
