@@ -3033,7 +3033,8 @@ function renderAvaliacaoSub(turma){
   return `<div class="card">
     <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px">
       ${mob?'':`<div style="font-size:14px;font-weight:700;color:var(--navy)">${(subLabels[filterAvaliacaoSub]||'')} — ${esc(turma.nome)}</div>`}
-      <div style="display:flex;gap:8px">
+      <div style="display:flex;gap:8px;flex-wrap:wrap;justify-content:flex-end">
+        ${showExtra?`<button class="btn btn-relatorio-turma" data-tipo="aid" data-turma="${turma.id}" style="background:#ede9fe;border-color:#c4b5fd;color:#5b21b6;font-size:12px;font-weight:700">📑 Relatório PDF</button>`:''}
         ${isSem2?`<button class="btn" onclick="importarModalidadesSem1('${turma.id}')" style="background:#eff6ff;border-color:#93c5fd;color:#1d4ed8;font-size:11px;font-weight:700;line-height:1.3;padding:4px 10px;text-align:center">📥 Importar notas<br>modalidades 1ºS</button>`:""}
         <button class="btn" id="exportPdfAvalBtn" style="background:#fee2e2;border-color:#fca5a5;color:#991b1b;font-size:12px;font-weight:700">📄 Exportar PDF</button>
         <button class="btn" id="exportExcelAvalBtn" style="background:#16a34a;color:#fff;border-color:#15803d">📊 Exportar Excel</button>
@@ -4560,7 +4561,10 @@ function renderComposicaoCorporal(turma){
   const chip=(t,bgc,col)=>`<span style="background:${bgc};color:${col};font-weight:700;border-radius:4px;padding:2px 8px">${t}</span>`;
 
   return `<div class="card" style="margin-bottom:12px">
-    <div style="font-size:16px;font-weight:700;color:var(--navy);margin-bottom:4px">⚖️ Composição Corporal — ${esc(turma.nome)}</div>
+    <div style="display:flex;align-items:center;justify-content:space-between;gap:8px;flex-wrap:wrap;margin-bottom:4px">
+      <div style="font-size:16px;font-weight:700;color:var(--navy)">⚖️ Composição Corporal — ${esc(turma.nome)}</div>
+      <button class="btn btn-relatorio-turma" data-tipo="cc" data-turma="${turma.id}" style="background:#ede9fe;border-color:#c4b5fd;color:#5b21b6;font-size:12px;font-weight:700">📑 Relatório PDF</button>
+    </div>
     <div style="font-size:11px;color:var(--gray);margin-bottom:12px">Dois momentos de avaliação. A <b>idade</b> escreve-se à mão (é a do dia do teste); no 2º momento, se ficar vazia, usa-se a do 1º. O IMC, o ICA (índice cintura-anca), o RCE (relação cintura-estatura), as análises e a evolução calculam-se sozinhos. Tudo é guardado ao sair de cada campo.</div>
     <div style="overflow:auto;max-height:calc(100vh - 340px);border:1px solid var(--border);border-radius:8px">
       <table style="border-collapse:collapse;min-width:100%">
@@ -6230,8 +6234,8 @@ function fitEvalTexto(badge, testLabel){
   if(badge==='pm') return `${testLabel} — precisa de melhorar`;
   return '';
 }
-function renderRelatorioAlunoModal(){
-  const {turmaId, nome}=modal;
+function renderRelatorioAlunoModal(m=modal){
+  const {turmaId, nome}=m;
   const turma=S.turmas.find(t=>t.id==turmaId);
   if(!turma) return '';
   const alunoObj=turma.alunos.find(a=>(typeof a==='string'?a:a.nome)===nome);
@@ -6463,6 +6467,80 @@ function renderRelatorioAlunoModal(){
   </div></div>`;
 }
 
+// ── Relatório PDF de toda a turma (um só ficheiro) ──
+function ccAlunoTemDados(turma,nome){
+  const d=S.avaliacao?.[`${turma.id}__compcorp`]||{};
+  return ccTemDados(d.m1?.[nome])||ccTemDados(d.m2?.[nome]);
+}
+function aidAlunoTemDados(turma,nome){
+  const preenchido=v=>v!==undefined&&v!==null&&String(v).trim()!=='';
+  const dados=S.avaliacao?.[`${turma.id}__aid`]||{};
+  const campos=['aidDomTecnico','aidDomTatico','aidCompromisso','aidAtletismo','aidRaquetes','aidGinastica','aidResponsab','aidExigencia'];
+  if(campos.some(c=>preenchido(dados[c]?.[nome]))) return true;
+  const res=S.avaliacao?.[`${turma.id}__fitescola`]?.resultados?.[nome]||{};
+  return Object.values(res).some(preenchido);
+}
+async function relatorioTurmaPDF(tipo,turmaId,btn){
+  const turma=S.turmas.find(t=>t.id==turmaId);
+  if(!turma||(btn&&btn.disabled)) return;
+  const orig=btn?btn.innerHTML:'';
+  let host=null;
+  try{
+    const nomes=turma.alunos.map(a=>typeof a==='string'?a:a.nome).filter(Boolean);
+    const comDados=nomes.filter(n=>tipo==='cc'?ccAlunoTemDados(turma,n):aidAlunoTemDados(turma,n));
+    if(!comDados.length){ alert('Ainda não há dados preenchidos nesta turma para gerar relatórios.'); return; }
+    if(btn){ btn.disabled=true; btn.innerHTML='⏳ A preparar…'; }
+    if(typeof html2canvas==='undefined'){
+      await new Promise((resolve,reject)=>{
+        const s=document.createElement('script');
+        s.src='https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js';
+        s.onload=resolve; s.onerror=reject; document.head.appendChild(s);
+      });
+    }
+    const {jsPDF}=window.jspdf;
+    const pdf=new jsPDF('p','mm','a4');
+    const pageW=210, pageH=297, margin=8, maxW=pageW-margin*2, maxH=pageH-margin*2;
+    // Contentor invisível (atrás da app) com largura fixa, igual à do relatório individual
+    host=document.createElement('div');
+    host.style.cssText='position:absolute;left:0;top:0;width:900px;z-index:-1;pointer-events:none;background:#fff';
+    document.body.appendChild(host);
+    let paginas=0;
+    for(let i=0;i<comDados.length;i++){
+      if(btn) btn.innerHTML=`⏳ ${i+1}/${comDados.length}…`;
+      const m={type:tipo==='cc'?'relatorioCC':'relatorioAluno',turmaId:turma.id,nome:comDados[i]};
+      host.innerHTML=tipo==='cc'?renderRelatorioCCModal(m):renderRelatorioAlunoModal(m);
+      const ov=host.querySelector('.modal-overlay');
+      if(ov) ov.style.cssText='position:static;display:block;background:none;padding:0;width:900px;height:auto;overflow:visible';
+      const box=host.querySelector('.modal');
+      if(box) box.style.cssText='width:900px;max-width:900px;max-height:none;overflow:visible;padding:0;margin:0;display:block;box-shadow:none;border-radius:0';
+      const page=host.querySelector('#relatorioPageContent');
+      if(page){ page.style.overflow='visible'; page.style.maxHeight='none'; page.removeAttribute('id'); }
+      host.querySelector('.modal-actions')?.remove();
+      const elems=tipo==='cc'?[...host.querySelectorAll('.cc-pagina')]:(page?[page]:[]);
+      await new Promise(r=>setTimeout(r,40));
+      for(const el of elems){
+        const canvas=await html2canvas(el,{scale:1.75,backgroundColor:'#ffffff',useCORS:true,scrollX:0,scrollY:0,height:el.scrollHeight,windowHeight:el.scrollHeight});
+        const ratio=canvas.width/canvas.height;
+        let finalW=maxW, finalH=maxW/ratio;
+        if(finalH>maxH){ finalH=maxH; finalW=maxH*ratio; }
+        if(paginas>0) pdf.addPage();
+        pdf.addImage(canvas.toDataURL('image/jpeg',0.9),'JPEG',margin+(maxW-finalW)/2,margin,finalW,finalH,undefined,'FAST');
+        paginas++;
+      }
+    }
+    const nomeTurma=String(turma.nome||'turma').replace(/[^\wÀ-ÿ]+/g,'_');
+    pdf.save(`Relatorios_${tipo==='cc'?'ComposicaoCorporal':'AID'}_${nomeTurma}.pdf`);
+    const omit=nomes.length-comDados.length;
+    if(btn){ btn.innerHTML=`✅ ${comDados.length} relatórios${omit?` (${omit} sem dados)`:''}`; setTimeout(()=>{btn.innerHTML=orig;},3500); }
+  }catch(err){
+    alert('Erro ao gerar o PDF da turma: '+(err&&err.message?err.message:err));
+    if(btn) btn.innerHTML=orig;
+  }finally{
+    if(host) host.remove();
+    if(btn) btn.disabled=false;
+  }
+}
+
 // ── Relatório individual de Composição Corporal (para entregar ao aluno) ──
 function ccFmtData(d){
   const m=/^(\d{4})-(\d{2})-(\d{2})/.exec(d||'');
@@ -6513,8 +6591,8 @@ function ccFitDados(turma,nome,genero,dataNasc,idadeFallback){
   });
   return out;
 }
-function renderRelatorioCCModal(){
-  const {turmaId,nome}=modal;
+function renderRelatorioCCModal(m=modal){
+  const {turmaId,nome}=m;
   const turma=S.turmas.find(t=>t.id==turmaId);
   if(!turma) return '';
   const alunoObj=turma.alunos.find(a=>(typeof a==='string'?a:a.nome)===nome);
@@ -8152,6 +8230,9 @@ function attachEvents(){
       modal={type:'relatorioAluno', turmaId:parseInt(el.dataset.turma), nome:el.dataset.nome};
       render();
     });
+  });
+  document.querySelectorAll('.btn-relatorio-turma').forEach(b=>{
+    b.addEventListener('click',()=>relatorioTurmaPDF(b.dataset.tipo,parseInt(b.dataset.turma),b));
   });
   document.querySelectorAll('.cc-nome-link').forEach(el=>{
     el.addEventListener('click',()=>{
