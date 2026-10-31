@@ -3034,6 +3034,7 @@ function renderAvaliacaoSub(turma){
     <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px">
       ${mob?'':`<div style="font-size:14px;font-weight:700;color:var(--navy)">${(subLabels[filterAvaliacaoSub]||'')} — ${esc(turma.nome)}</div>`}
       <div style="display:flex;gap:8px;flex-wrap:wrap;justify-content:flex-end">
+        ${showExtra?`<button class="btn btn-conf-curr" data-turma="${turma.id}" style="background:#fff7ed;border-color:#fdba74;color:#9a3412;font-size:12px;font-weight:700">🧭 Conferência curricular</button>`:''}
         ${showExtra?`<button class="btn btn-relatorio-turma" data-tipo="aid" data-turma="${turma.id}" style="background:#ede9fe;border-color:#c4b5fd;color:#5b21b6;font-size:12px;font-weight:700">📑 Relatório PDF</button>`:''}
         ${isSem2?`<button class="btn" onclick="importarModalidadesSem1('${turma.id}')" style="background:#eff6ff;border-color:#93c5fd;color:#1d4ed8;font-size:11px;font-weight:700;line-height:1.3;padding:4px 10px;text-align:center">📥 Importar notas<br>modalidades 1ºS</button>`:""}
         <button class="btn" id="exportPdfAvalBtn" style="background:#fee2e2;border-color:#fca5a5;color:#991b1b;font-size:12px;font-weight:700">📄 Exportar PDF</button>
@@ -6467,6 +6468,440 @@ function renderRelatorioAlunoModal(m=modal){
   </div></div>`;
 }
 
+// ═══ CONFERÊNCIA CURRICULAR (turma) — a partir da AID ═══
+const CFC_CRIT=[
+  ['aidDomTecnico','Domínio Técnico','Jogos coletivos'],
+  ['aidDomTatico','Domínio Tático','Jogos coletivos'],
+  ['aidCompromisso','Compromisso no Jogo','Jogos coletivos'],
+  ['aidAtletismo','Atletismo','Atletismo'],
+  ['aidRaquetes','Raquetes','Raquetes'],
+  ['aidGinastica','Ginástica','Ginástica']
+];
+const CFC_NIVEIS=['Insuficiente','Suficiente','Bom','Muito Bom'];
+const CFC_NUM={'Insuficiente':1,'Suficiente':2,'Bom':3,'Muito Bom':4};
+const CFC_COR={'Insuficiente':'#ef4444','Suficiente':'#f59e0b','Bom':'#22c55e','Muito Bom':'#3b82f6'};
+const CFC_MATERIAS=['Jogos coletivos','Atletismo','Raquetes','Ginástica'];
+
+function cfcSet(turmaId,campo,sub,valor){
+  const k=`${turmaId}__confcurr`;
+  if(!S.avaliacao) S.avaliacao={};
+  if(!S.avaliacao[k]) S.avaliacao[k]={decisoes:{}};
+  if(!S.avaliacao[k].decisoes) S.avaliacao[k].decisoes={};
+  if(sub){
+    if(!S.avaliacao[k].decisoes[campo]) S.avaliacao[k].decisoes[campo]={};
+    S.avaliacao[k].decisoes[campo][sub]=valor;
+  } else S.avaliacao[k][campo]=valor;
+  save();
+}
+// Nível de exigência sugerido pela média (1 casa decimal, como se vê no quadro): abaixo de 2,5 Introdução · de 2,5 a 3,3 Elementar · acima de 3,3 Avançado
+function cfcNivelDeMedia(m){ if(m===null) return ''; const r=Math.round(m*10)/10; return r<2.5?'Introdução':r<=3.3?'Elementar':'Avançado'; }
+function cfcMediaNivel(n){ return n>=3.5?'Muito Bom':n>=2.5?'Bom':n>=1.5?'Suficiente':'Insuficiente'; }
+
+// Recolhe os dados AID de cada aluno e agrega-os ao nível da turma
+function cfcStats(turma){
+  const dados=S.avaliacao?.[`${turma.id}__aid`]||{};
+  const ano=turma.ano;
+  const isBasico=['7º','8º','9º'].includes(ano);
+  const MAP_ANO={
+    '7º':{'Muito Bom':6,'Bom':4,'Suficiente':2.5,'Insuficiente':1.5},'8º':{'Muito Bom':7,'Bom':5,'Suficiente':3.5,'Insuficiente':2.5},
+    '9º':{'Muito Bom':8.5,'Bom':6.5,'Suficiente':4.5,'Insuficiente':2.5},'10º':{'Muito Bom':9.5,'Bom':7.5,'Suficiente':5,'Insuficiente':2.5},
+    '11º':{'Muito Bom':9.5,'Bom':7.5,'Suficiente':5,'Insuficiente':2.5},'12º':{'Muito Bom':10,'Bom':8,'Suficiente':5.5,'Insuficiente':3}
+  };
+  const MAP=MAP_ANO[ano]||MAP_ANO['10º'];
+  const alunos=turma.alunos.map(a=>typeof a==='string'?{nome:a}:a).filter(a=>a&&a.nome);
+  const por=alunos.map(a=>{
+    const nome=a.nome, genero=(a.genero||'').toUpperCase();
+    const fit=ccFitDados(turma,nome,genero,a.dataNasc||'',null).moms.aid;
+    const badges={};
+    FITESCOLA_TESTES.forEach(t=>{ badges[t.id]=fit.ev[t.id].ev.badge||''; });
+    const bv=Object.values(badges);
+    const nPM=bv.filter(b=>b==='pm').length, nOK=bv.filter(b=>b==='ok').length, nAtl=bv.filter(b=>b==='atl').length;
+    const crit={};
+    CFC_CRIT.forEach(([c])=>{ const v=dados[c]?.[nome]; crit[c]=CFC_NUM[v]?v:''; });
+    const nums=Object.values(crit).filter(Boolean).map(v=>CFC_NUM[v]);
+    const desemp=nums.length?cfcMediaNivel(nums.reduce((s,n)=>s+n,0)/nums.length):'';
+    const mat={};
+    CFC_MATERIAS.forEach(mt=>{
+      const ns=CFC_CRIT.filter(c=>c[2]===mt).map(c=>CFC_NUM[crit[c[0]]]).filter(Boolean);
+      mat[mt]=ns.length?cfcMediaNivel(ns.reduce((s,n)=>s+n,0)/ns.length):'';
+    });
+    const respP=parseFloat(dados.aidResponsab?.[nome]), exigP=parseFloat(dados.aidExigencia?.[nome]);
+    const respN=!isNaN(respP)?aidPontosToNivel(respP,ano):'', exigN=!isNaN(exigP)?aidPontosToNivel(exigP,ano):'';
+    // Previsão de avaliação (mesma lógica da grelha AID)
+    let previsao='';
+    if(desemp){
+      const fitPontos=Math.min(5,nAtl*1+nOK*0.5);
+      const total=Math.round((fitPontos+(MAP[desemp]??0))*100)/100;
+      const cf=calcClassFinal(total,ano,'sem1');
+      const manual=dados.aidNotaProfessor?.[nome];
+      const notaProf=isBasico?(manual!==undefined&&manual!==''?parseFloat(manual):NaN):(cf!==''?parseFloat(cf):NaN);
+      const af=(respP||exigP)?Math.round(((respP||0)+(exigP||0))*10)/10:0;
+      if(!isNaN(notaProf)&&af){
+        const est=Math.round((notaProf*0.85+af*0.15)*10)/10;
+        if(isBasico){ const pct=est/20*100; previsao=pct<20?'Nível 1':pct<50?'Nível 2':pct<70?'Nível 3':pct<90?'Nível 4':'Nível 5'; }
+        else { const v=Math.round(est); previsao=v<5?'1 a 4':v<10?'5 a 9':v<14?'10 a 13':v<18?'14 a 17':'18 a 20'; }
+      }
+    }
+    return {nome,badges,nPM,nOK,nAtl,nAval:nPM+nOK+nAtl,crit,mat,nCrit:nums.length,desemp,respN,exigN,previsao};
+  });
+  // FITescola por teste
+  const fitTestes=FITESCOLA_TESTES.map(t=>{
+    const c={pm:0,ok:0,atl:0};
+    por.forEach(p=>{ if(c[p.badges[t.id]]!==undefined) c[p.badges[t.id]]++; });
+    const n=c.pm+c.ok+c.atl;
+    return {id:t.id,label:t.label,n,...c,pctPM:n?Math.round(c.pm/n*100):0};
+  });
+  // Critérios das modalidades
+  const crits=CFC_CRIT.map(([campo,label,materia])=>{
+    const dist={'Insuficiente':0,'Suficiente':0,'Bom':0,'Muito Bom':0};
+    por.forEach(p=>{ if(p.crit[campo]) dist[p.crit[campo]]++; });
+    const n=Object.values(dist).reduce((s,v)=>s+v,0);
+    const media=n?CFC_NIVEIS.reduce((s,k)=>s+dist[k]*CFC_NUM[k],0)/n:null;
+    return {campo,label,materia,dist,n,media};
+  });
+  const materias=CFC_MATERIAS.map(m=>{
+    const cs=crits.filter(c=>c.materia===m&&c.media!==null);
+    const media=cs.length?cs.reduce((s,c)=>s+c.media,0)/cs.length:null;
+    return {materia:m,media,sugestao:cfcNivelDeMedia(media)};
+  });
+  const atit=[['aidResponsab','Responsabilidade e Integridade','respN'],['aidExigencia','Exigência e Excelência','exigN']].map(([campo,label,pk])=>{
+    const dist={'Insuficiente':0,'Suficiente':0,'Bom':0,'Muito Bom':0};
+    por.forEach(p=>{ if(p[pk]) dist[p[pk]]++; });
+    const n=Object.values(dist).reduce((s,v)=>s+v,0);
+    return {campo,label,dist,n};
+  });
+  const prevLabels=isBasico?['Nível 1','Nível 2','Nível 3','Nível 4','Nível 5']:['1 a 4','5 a 9','10 a 13','14 a 17','18 a 20'];
+  const prev=prevLabels.map(l=>({l,n:por.filter(p=>p.previsao===l).length}));
+  const materiasDet=CFC_MATERIAS.map(mt=>{
+    const dist={'Insuficiente':0,'Suficiente':0,'Bom':0,'Muito Bom':0};
+    por.forEach(p=>{ if(p.mat[mt]) dist[p.mat[mt]]++; });
+    const n=Object.values(dist).reduce((s,v)=>s+v,0);
+    const base=materias.find(x=>x.materia===mt);
+    return {materia:mt,dist,n,baixos:dist['Insuficiente']+dist['Suficiente'],altos:dist['Bom']+dist['Muito Bom'],
+      media:base.media,sugestao:base.sugestao,crits:crits.filter(c=>c.materia===mt),
+      apoiar:por.filter(p=>p.mat[mt]==='Insuficiente'||p.mat[mt]==='Suficiente').map(p=>({nome:p.nome,nivel:p.mat[mt]})),
+      destaques:por.filter(p=>p.mat[mt]==='Muito Bom').map(p=>p.nome)};
+  });
+  return {por,fitTestes,crits,materias,materiasDet,atit,prev,isBasico};
+}
+
+function renderConferenciaCurricularModal(m=modal){
+  const turma=S.turmas.find(t=>t.id==m.turmaId);
+  if(!turma) return '';
+  const st=cfcStats(turma);
+  const total=st.por.length;
+  const comFit=st.por.filter(p=>p.nAval>0).length;
+  const comCrit=st.por.filter(p=>p.nCrit>0).length;
+  const compl=st.por.filter(p=>p.nCrit===6).length;
+  const conf=S.avaliacao?.[`${turma.id}__confcurr`]||{};
+  const dec=conf.decisoes||{};
+  const pct=(n,d)=>d?Math.round(n/d*100):0;
+  const bar=(segs)=>{ // segs: [{n,c,l}]
+    const tot=segs.reduce((s,x)=>s+x.n,0);
+    if(!tot) return '<div class="cfc-bar"><div style="flex:1;background:#e2e8f0"></div></div>';
+    return `<div class="cfc-bar">${segs.filter(x=>x.n>0).map(x=>`<div style="flex:${x.n};background:${x.c}" title="${x.l}: ${x.n}">${x.n}</div>`).join('')}</div>`;
+  };
+  const nomesChips=(lista,cor)=>lista.length?lista.map(x=>`<span class="cfc-nome" style="${cor==='#ef4444'?CH.ins:cor==='#3b82f6'?CH.dest:CH.suf}">${esc(x)}</span>`).join(''):'<span style="color:#94a3b8;font-size:10px">Nenhum aluno</span>';
+  const first=n=>String(n).trim();
+  // Cores por nível: moldura + fundo suave
+  const CH={ins:'border-color:#ef4444;background:#fee2e2;color:#7f1d1d',suf:'border-color:#f59e0b;background:#fef3c7;color:#78350f',dest:'border-color:#3b82f6;background:#dbeafe;color:#1e3a8a'};
+
+  // ── Secção A: Aptidão física ──
+  const fitRows=st.fitTestes.map(t=>`
+    <tr><td class="cfc-td cfc-lab">${t.label}</td>
+    <td class="cfc-td" style="text-align:center">${t.n}/${total}</td>
+    <td class="cfc-td" style="width:44%">${bar([{n:t.pm,c:'#ef4444',l:'Precisa melhorar'},{n:t.ok,c:'#22c55e',l:'Zona saudável'},{n:t.atl,c:'#3b82f6',l:'Perfil atlético'}])}</td>
+    <td class="cfc-td" style="text-align:center;font-weight:700;color:${t.n&&t.pctPM>=40?'#b91c1c':'#475569'}">${t.n?t.pctPM+'%':'—'}${t.n>=3&&t.pctPM>=40?' ⚠':''}</td></tr>`).join('');
+
+  // ── Secção B: Modalidades ──
+  // Quadro de critérios com 2 colunas de conteúdos: grupo + critério (células do grupo unidas)
+  const dadosCels=(d,media)=>`<td class="cfc-td" style="text-align:center">${d.n}/${total}</td>
+    <td class="cfc-td" style="width:38%">${bar(CFC_NIVEIS.map(k=>({n:d.dist[k],c:CFC_COR[k],l:k})))}</td>
+    <td class="cfc-td" style="text-align:center;font-weight:700">${media}</td>`;
+  const grp=(txt,rs)=>`<td class="cfc-td cfc-grp"${rs>1?` rowspan="${rs}"`:''}>${txt}</td>`;
+  const critRows=st.crits.map((c,i)=>{
+    const media=c.media!==null?c.media.toFixed(1).replace('.',','):'—';
+    if(c.materia==='Jogos coletivos'){
+      return `<tr>${i===0?grp('Modalidades Coletivas',3):''}<td class="cfc-td cfc-lab">${c.label}</td>${dadosCels(c,media)}</tr>`;
+    }
+    return `<tr>${grp(c.materia,1)}<td class="cfc-td"></td>${dadosCels(c,media)}</tr>`;
+  }).join('');
+  const atitRows=st.atit.map(a=>`<tr><td class="cfc-td cfc-lab" style="width:34%">${a.label}</td>
+    <td class="cfc-td" style="text-align:center;width:12%">${a.n}/${total}</td>
+    <td class="cfc-td">${bar(CFC_NIVEIS.map(k=>({n:a.dist[k],c:CFC_COR[k],l:k})))}</td></tr>`).join('');
+  const prevMax=Math.max(1,...st.prev.map(p=>p.n));
+  const prevHtml=st.prev.map(p=>`<div class="cfc-prev"><div class="cfc-prev-bar" style="height:${Math.round(p.n/prevMax*44)+4}px"></div><b>${p.n}</b><span>${p.l}</span></div>`).join('');
+
+  // ── Leitura automática da turma ──
+  const leitura=[];  // leitura geral (aptidão física, atitudes, cobertura)
+  const fitAv=st.fitTestes.filter(t=>t.n>=3);
+  if(comFit){
+    const fracos=[...fitAv].sort((a,b)=>b.pctPM-a.pctPM).filter(t=>t.pctPM>=30).slice(0,3);
+    const media=Math.round(st.por.filter(p=>p.nAval>0).reduce((s,p)=>s+(p.nOK+p.nAtl)/p.nAval,0)/comFit*100);
+    leitura.push(fracos.length
+      ?`<b>Aptidão física:</b> em média, ${media}% dos testes de cada aluno estão na zona saudável ou acima. Os testes mais frágeis são ${fracos.map(t=>`${t.label} (${t.pctPM}% a precisar de melhorar)`).join(', ')} — sugere-se reforçar as capacidades associadas ao longo do período.`
+      :`<b>Aptidão física:</b> em média, ${media}% dos testes de cada aluno estão na zona saudável ou acima, e nenhum teste tem 30% ou mais de alunos a precisar de melhorar.`);
+  } else leitura.push('<b>Aptidão física:</b> ainda sem resultados FITescola da AID para esta turma.');
+  st.atit.forEach(a=>{
+    if(a.n>=4){ const baixos=a.dist['Insuficiente']+a.dist['Suficiente']; if(pct(baixos,a.n)>=20) leitura.push(`<b>${a.label}:</b> ${pct(baixos,a.n)}% dos alunos avaliados em Suficiente ou Insuficiente — reforçar regras de funcionamento, fair-play e papéis de responsabilidade nas aulas.`); }
+  });
+  if(compl<total) leitura.push(`<b>Cobertura da AID:</b> ${compl} de ${total} alunos com os 6 critérios das modalidades preenchidos; ${total-comCrit} sem qualquer critério. Convém completar a avaliação antes de fechar as decisões.`);
+
+  // ── Leitura por modalidade ──
+  const MAT_TXT={
+    'Jogos coletivos':{ico:'⚽',intro:'jogos reduzidos e condicionados, com foco em passe, receção, desmarcação e posicionamento, e exercícios critério com feedback frequente',elem:'consolidar os gestos técnicos em jogo reduzido e introduzir princípios táticos de ataque e defesa',avanc:'situações de jogo formal com oposição, sistemas de jogo, funções específicas, arbitragem e mini-torneios'},
+    'Atletismo':{ico:'🏃',intro:'a técnica base das corridas, saltos e lançamentos, através de progressões pedagógicas e trabalho por estações',elem:'consolidar a técnica das disciplinas já abordadas e trabalhar a melhoria progressiva das marcas',avanc:'aperfeiçoar a técnica, superar marcas pessoais e introduzir competição e organização de provas'},
+    'Raquetes':{ico:'🏸',intro:'pegas, deslocamentos e batimentos fundamentais em rallies cooperativos, antes de passar ao jogo',elem:'consolidar os batimentos e introduzir situações de jogo reduzido com oposição',avanc:'jogo de pares e singulares com oposição, variação de batimentos e estratégias de jogo'},
+    'Ginástica':{ico:'🤸',intro:'elementos de solo e aparelhos com progressões pedagógicas, ajudas e sequências curtas',elem:'consolidar os elementos de base e construir sequências simples com ligações',avanc:'sequências mais complexas e variadas, com ligações entre elementos, composição e apreciação crítica'}
+  };
+  const matCards=st.materiasDet.map(d=>{
+    const tx=MAT_TXT[d.materia];
+    let leit;
+    if(d.n<3){ leit=`Dados insuficientes (${d.n} de ${total} alunos avaliados) — completar a AID desta modalidade antes de decidir.`; }
+    else {
+      const pB=pct(d.baixos,d.n), pA=pct(d.altos,d.n);
+      if(pB>=25&&pA>=25) leit=`Turma heterogénea (${pB}% em Suficiente ou Insuficiente e ${pA}% em Bom ou Muito Bom): organizar grupos de nível, tarefas com graus de dificuldade diferentes e tutoria entre pares.`;
+      else if(pB>=50) leit=`${pB}% dos alunos em Suficiente ou Insuficiente — nível de partida baixo: privilegiar ${tx.intro}.`;
+      else if(pA>=60) leit=d.sugestao==='Avançado'?`${pA}% dos alunos em Bom ou Muito Bom — nível de partida elevado: avançar para ${tx.avanc}.`:`${pA}% dos alunos em Bom ou Muito Bom — boa base de partida: ${tx.elem} e começar a introduzir, de forma gradual, ${tx.avanc}.`;
+      else leit=`Nível de partida intermédio (${pA}% em Bom ou Muito Bom): ${tx.elem}.`;
+      if(d.crits.length>1){
+        const cs=d.crits.filter(c=>c.media!==null).sort((x,y)=>x.media-y.media);
+        if(cs.length>1&&cs[cs.length-1].media-cs[0].media>=0.3)
+          leit+=` Critério mais frágil: ${cs[0].label} (${cs[0].media.toFixed(1).replace('.',',')}); mais forte: ${cs[cs.length-1].label} (${cs[cs.length-1].media.toFixed(1).replace('.',',')}).`;
+      }
+    }
+    return `<div class="cfc-card">
+      <h4>${tx.ico} ${d.materia}${d.sugestao?` <span class="cfc-nv">${d.sugestao} · média ${d.media.toFixed(1).replace('.',',')}</span>`:''}</h4>
+      ${bar(CFC_NIVEIS.map(k=>({n:d.dist[k],c:CFC_COR[k],l:k})))}
+      <div class="cfc-p">${leit}</div>
+    </div>`;
+  }).join('');
+
+  // ── Casos particulares por modalidade (quadro da página 1) ──
+  const casosMod=st.materiasDet.map(d=>{
+    const ap=d.apoiar.length?d.apoiar.map(x=>`<span class="cfc-nome" style="${x.nivel==='Insuficiente'?CH.ins:CH.suf}">${esc(first(x.nome))}</span>`).join(''):'<span style="color:#94a3b8">nenhum</span>';
+    const de=d.destaques.length?d.destaques.map(x=>`<span class="cfc-nome" style="${CH.dest}">${esc(first(x))}</span>`).join(''):'<span style="color:#94a3b8">nenhum</span>';
+    return `<tr><td class="cfc-td cfc-lab" style="width:20%">${MAT_TXT[d.materia].ico} ${d.materia}</td>
+      <td class="cfc-td" style="font-size:10px"><b style="color:#475569">A apoiar:</b> ${ap}</td>
+      <td class="cfc-td" style="font-size:10px;width:30%"><b style="color:#475569">Destaques:</b> ${de}</td></tr>`;
+  }).join('');
+
+  // ── Alunos a acompanhar ──
+  // Todos os alunos com pelo menos 1 teste a precisar de melhorar (do mais ao menos urgente)
+  const lAFdet=st.por.filter(p=>p.nPM>=1)
+    .sort((a,b)=>b.nPM-a.nPM||String(a.nome).localeCompare(String(b.nome),'pt'))
+    .map(p=>({nome:p.nome,n:p.nPM,testes:FITESCOLA_TESTES.filter(t=>p.badges[t.id]==='pm').map(t=>t.label)}));
+  const afChips=lAFdet.length?lAFdet.map(x=>`<span class="cfc-nome" style="${CH.ins}"><b>${esc(first(x.nome))}</b> <span style="opacity:.75">· ${x.testes.map(esc).join(', ')}</span></span>`).join(''):'<span style="color:#94a3b8;font-size:10px">Nenhum aluno</span>';
+  const lMod=st.por.filter(p=>p.desemp==='Insuficiente'||p.desemp==='Suficiente').map(p=>`${first(p.nome)} (${p.desemp})`);
+  // Atitudes e valores: Insuficiente e Suficiente (os Insuficientes primeiro), com o critério em causa
+  const abrev={'Insuficiente':'Insuf.','Suficiente':'Suf.'};
+  const lAtitDet=st.por.map(p=>{
+    const it=[];
+    if(p.respN==='Insuficiente'||p.respN==='Suficiente') it.push({c:'Resp.',n:p.respN});
+    if(p.exigN==='Insuficiente'||p.exigN==='Suficiente') it.push({c:'Exig.',n:p.exigN});
+    return {nome:p.nome,it,pior:it.some(x=>x.n==='Insuficiente')?'Insuficiente':'Suficiente'};
+  }).filter(x=>x.it.length)
+    .sort((a,b)=>(a.pior==='Insuficiente'?0:1)-(b.pior==='Insuficiente'?0:1)||String(a.nome).localeCompare(String(b.nome),'pt'));
+  const atitChips=lAtitDet.length?lAtitDet.map(x=>`<span class="cfc-nome" style="${x.pior==='Insuficiente'?CH.ins:CH.suf}"><b>${esc(first(x.nome))}</b> <span style="opacity:.75">· ${x.it.map(y=>`${y.c} ${abrev[y.n]}`).join(' · ')}</span></span>`).join(''):'<span style="color:#94a3b8;font-size:10px">Nenhum aluno</span>';
+  const lDestDet=st.por.filter(p=>p.nAtl>=3)
+    .sort((a,b)=>b.nAtl-a.nAtl||String(a.nome).localeCompare(String(b.nome),'pt'))
+    .map(p=>({nome:p.nome,testes:FITESCOLA_TESTES.filter(t=>p.badges[t.id]==='atl').map(t=>t.label)}));
+  const destChips=lDestDet.length?lDestDet.map(x=>`<span class="cfc-nome" style="${CH.dest}"><b>${esc(first(x.nome))}</b> <span style="opacity:.75">· ${x.testes.map(esc).join(', ')}</span></span>`).join(''):'<span style="color:#94a3b8;font-size:10px">Nenhum aluno</span>';
+
+  // ── Decisões ──
+  const sel=(campo,opcoes,atual)=>`<select class="cfc-in" onchange="cfcSet(${turma.id},'${campo}','nivel',this.value)"><option value="">— decidir —</option>${opcoes.map(o=>`<option${atual===o?' selected':''}>${o}</option>`).join('')}</select>`;
+  const obs=(campo,atual)=>`<textarea class="cfc-in cfc-ta" rows="2" placeholder="Estratégias, matérias a privilegiar, ajustes ao projeto curricular…" onchange="cfcSet(${turma.id},'${campo}','obs',this.value)">${esc(atual||'')}</textarea>`;
+  const afPrior=(()=>{ if(!fitAv.length) return ''; const m=fitAv.reduce((s,t)=>s+t.pctPM,0)/fitAv.length; return m>=40?'Alta':m>=25?'Média':'Baixa'; })();
+  const decRows=[
+    ...st.materias.map(x=>`<tr><td class="cfc-td cfc-lab">${x.materia}</td>
+      <td class="cfc-td" style="width:17%">${sel(x.materia,['Introdução','Elementar','Avançado'],dec[x.materia]?.nivel)}<div class="cfc-sug">${x.sugestao?'Sugestão: '+x.sugestao:'Sem dados'}</div></td>
+      <td class="cfc-td">${obs(x.materia,dec[x.materia]?.obs)}</td></tr>`),
+    `<tr><td class="cfc-td cfc-lab">Aptidão física</td>
+      <td class="cfc-td" style="width:17%">${sel('Aptidão física',['Alta','Média','Baixa'],dec['Aptidão física']?.nivel)}<div class="cfc-sug">${afPrior?'Prioridade sugerida: '+afPrior:'Sem dados'}</div></td>
+      <td class="cfc-td">${obs('Aptidão física',dec['Aptidão física']?.obs)}</td></tr>`
+  ].join('');
+
+  const hoje=new Date().toLocaleDateString('pt-PT');
+  const cab=(sub)=>`<div class="cfc-head"><div style="display:flex;align-items:center;gap:12px">
+      ${S.logo?`<img src="${S.logo}" alt="Logotipo" style="height:88px;width:auto;max-width:190px;object-fit:contain;flex-shrink:0">`:''}
+      <div><div class="cfc-titulo">Conferência Curricular — ${esc(turma.nome)}</div>
+      <div class="cfc-sub">${esc(S.escola||'Escola')} · Educação Física ${esc(S.anoLetivo||'')} · Prof. ${esc(S.professor||'')} · ${sub}</div></div></div>
+      <div class="cfc-chip">${esc(turma.ano||'')} · ${total} alunos</div></div>`;
+
+  return `<div class="modal-overlay" id="modalOverlay"><div class="modal" style="width:min(96vw,980px);max-width:980px;max-height:92vh;padding:0;overflow:hidden;display:flex;flex-direction:column">
+  <style>
+    .cfc-wrap{padding:14px 16px;overflow-y:auto;flex:1;background:#f1f5f9}
+    .cfc-pag{background:#fff;padding:20px 24px;box-sizing:border-box;margin-bottom:14px;display:flex;flex-direction:column;justify-content:space-between;gap:12px;aspect-ratio:194/281}
+    .cfc-blk>.cfc-sec:first-child{margin-top:0}
+    .cfc-head{display:flex;align-items:center;justify-content:space-between;gap:10px;border-bottom:2px solid #1a2d4a;padding-bottom:8px;margin-bottom:8px}
+    .cfc-titulo{font-size:16px;font-weight:800;color:#1a2d4a}
+    .cfc-sub{font-size:10px;color:#64748b;margin-top:2px}
+    .cfc-chip{background:#1a2d4a;color:#fff;font-size:11px;font-weight:700;padding:6px 12px;border-radius:7px;white-space:nowrap}
+    .cfc-kpis{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin:12px 0 4px}
+    .cfc-kpi{background:#f1f6fb;border:1px solid #d3deeb;border-left:3px solid #1a2d4a;border-radius:7px;padding:6px 10px;box-shadow:0 2px 5px rgba(15,23,42,.12)}
+    .cfc-kpi b{display:block;font-size:17px;color:#1a2d4a}.cfc-kpi span{font-size:9.5px;color:#64748b}
+    .cfc-sec{font-size:9.5px;font-weight:700;color:#fff;padding:2px 9px;border-radius:4px;display:inline-block;margin:22px 0 9px}
+    .cfc-table{width:100%;border-collapse:collapse;font-size:10.5px}
+    .cfc-table th{background:#1a2d4a;color:#fff;font-size:10px;padding:3px 7px;text-align:left}
+    .cfc-td{border:1px solid #e2e8f0;padding:3px 7px;vertical-align:middle;color:#1a2d4a}
+    .cfc-lab{font-weight:600;color:#475569;font-size:10.5px;width:24%}
+    .cfc-grp{font-weight:700;color:#1a2d4a;font-size:10.5px;text-align:center;vertical-align:middle;background:#f8fafc;width:17%}
+    .cfc-bar{display:flex;height:16px;border-radius:5px;overflow:hidden;font-size:9px;font-weight:700;color:#fff;text-align:center;line-height:16px}
+    .cfc-bar div{min-width:14px}
+    .cfc-leg{font-size:9px;color:#64748b;margin-top:6px;display:flex;gap:10px;flex-wrap:wrap}
+    .cfc-leg i{display:inline-block;width:9px;height:9px;border-radius:2px;margin-right:3px;vertical-align:-1px}
+    .cfc-box{background:#fff8e6;border:1px solid #f3d9a0;border-left:3px solid #b45309;border-radius:7px;padding:8px 12px;box-shadow:0 2px 5px rgba(15,23,42,.12);font-size:10px;color:#374151;line-height:1.5}
+    .cfc-box li{margin-bottom:4px}
+    .cfc-prevs{display:flex;gap:8px;align-items:flex-end;margin-top:4px}
+    .cfc-prev{flex:1;text-align:center;font-size:9px;color:#475569;display:flex;flex-direction:column;align-items:center;gap:2px}
+    .cfc-prev b{font-size:12px;color:#1a2d4a}.cfc-prev-bar{width:60%;background:#b45309;border-radius:4px 4px 0 0}
+    .cfc-grid4{display:grid;grid-template-columns:repeat(2,1fr);gap:8px}
+    .cfc-card{background:#f1f6fb;border:1px solid #d3deeb;border-left:3px solid #1a2d4a;border-radius:7px;padding:7px 10px;box-shadow:0 2px 5px rgba(15,23,42,.12)}
+    .cfc-card h4{margin:0 0 5px;font-size:10.5px;color:#1a2d4a}
+    .cfc-nv{font-weight:600;font-size:9px;color:#b45309;background:#fff8e6;border:1px solid #f3d9a0;border-radius:8px;padding:1px 7px;margin-left:4px;white-space:nowrap}
+    .cfc-p{font-size:10px;color:#374151;line-height:1.5;margin:6px 0}
+    .cfc-mini{font-size:9.5px;color:#475569;margin-top:3px}
+    .cfc-nome{display:inline-block;font-size:9px;border:1.5px solid;border-radius:8px;padding:0 6px;margin:0 3px 3px 0;background:#fff;color:#1a2d4a;line-height:1.5}
+    .cfc-in{width:100%;box-sizing:border-box;font-size:10.5px;border:1px solid #cbd5e1;border-radius:5px;padding:3px 5px;font-family:inherit;background:#fff;color:#1a2d4a}
+    .cfc-ta{resize:vertical;min-height:34px}
+    .cfc-sug{font-size:9px;color:#b45309;margin-top:2px}
+    .cfc-foot{border-top:1px solid #e2e8f0;padding-top:5px;margin-top:10px;display:flex;justify-content:space-between;font-size:8.5px;color:#94a3b8}
+    @media(max-width:640px){.cfc-pag{padding:12px}.cfc-grid4{grid-template-columns:1fr}.cfc-kpis{grid-template-columns:1fr 1fr 1fr}.cfc-table{font-size:9.5px}}
+  </style>
+  <div class="cfc-wrap" id="cfcContent">
+    <div class="cfc-pag">
+      <div class="cfc-blk">
+      ${cab('Dados da AID')}
+      <div class="cfc-kpis">
+        <div class="cfc-kpi"><b>${comFit}/${total}</b><span>com FITescola (AID)</span></div>
+        <div class="cfc-kpi"><b>${comCrit}/${total}</b><span>com critérios das modalidades</span></div>
+        <div class="cfc-kpi"><b>${compl}/${total}</b><span>com os 6 critérios completos</span></div>
+      </div>
+      </div>
+      <div class="cfc-blk">
+      <span class="cfc-sec" style="background:#0f766e">APTIDÃO FÍSICA — FITESCOLA (AID)</span>
+      <table class="cfc-table"><thead><tr><th>Teste</th><th style="text-align:center">Avaliados</th><th>Distribuição dos alunos</th><th style="text-align:center">% a melhorar</th></tr></thead><tbody>${fitRows}</tbody></table>
+      <div class="cfc-leg"><span><i style="background:#ef4444"></i>Precisa melhorar</span><span><i style="background:#22c55e"></i>Zona saudável</span><span><i style="background:#3b82f6"></i>Perfil atlético</span><span>⚠ = 40% ou mais dos alunos avaliados a precisar de melhorar</span></div>
+      <div class="cfc-grid4" style="margin-top:7px;grid-template-columns:1fr">
+        <div class="cfc-card"><h4>💪 Alunos a acompanhar — aptidão física (${lAFdet.length} com 1 ou mais testes a melhorar)</h4>${afChips}
+</div>
+        <div class="cfc-card"><h4>⭐ Destaques na aptidão física (${lDestDet.length} com 3 ou mais testes atléticos)</h4>${destChips}</div>
+      </div>
+      </div>
+      <div class="cfc-blk">
+      <span class="cfc-sec" style="background:#1d4ed8">MODALIDADES</span>
+      <table class="cfc-table"><thead><tr><th colspan="2" style="text-align:center">Conteúdos</th><th style="text-align:center">Avaliados</th><th>Distribuição dos alunos</th><th style="text-align:center">Média (1–4)</th></tr></thead><tbody>${critRows}</tbody></table>
+      <div class="cfc-leg">${CFC_NIVEIS.map(k=>`<span><i style="background:${CFC_COR[k]}"></i>${k}</span>`).join('')}</div>
+      <div class="cfc-card" style="margin-top:10px"><h4>🔎 Casos particulares — modalidades <span style="font-weight:400;margin-left:6px"><span class="cfc-nome" style="${CH.ins};margin:0 3px 0 0">Insuficiente</span><span class="cfc-nome" style="${CH.suf};margin:0 3px 0 0">Suficiente</span><span class="cfc-nome" style="${CH.dest};margin:0">Destaque (Muito Bom)</span></span></h4>
+        <table class="cfc-table" style="margin-top:2px"><tbody>${casosMod}</tbody></table></div>
+      </div>
+      <div class="cfc-foot"><span>${esc(S.escola||'')} · ${esc(S.anoLetivo||'')}</span><span>Conferência Curricular · AID</span><span>Gerado em ${hoje}</span></div>
+    </div>
+    <div class="cfc-pag">
+      <div class="cfc-blk">
+      <span class="cfc-sec" style="background:#7c3aed">ATITUDES E VALORES</span>
+      <table class="cfc-table"><thead><tr><th>Critério</th><th style="text-align:center">Avaliados</th><th>Distribuição dos alunos</th></tr></thead><tbody>${atitRows}</tbody></table>
+      <div class="cfc-leg">${CFC_NIVEIS.map(k=>`<span><i style="background:${CFC_COR[k]}"></i>${k}</span>`).join('')}</div>
+      <div class="cfc-card" style="margin-top:10px"><h4>🤝 Casos particulares — atitudes e valores <span style="font-weight:400;margin-left:6px"><span class="cfc-nome" style="${CH.ins};margin:0 3px 0 0">Insuficiente</span><span class="cfc-nome" style="${CH.suf};margin:0">Suficiente</span></span> <span style="font-weight:400;font-size:9px;color:#64748b">(${lAtitDet.length} alunos · Resp. = Responsabilidade e Integridade · Exig. = Exigência e Excelência)</span></h4>${atitChips}</div>
+      </div>
+      <div class="cfc-blk">
+      <span class="cfc-sec" style="background:#b45309">PREVISÃO DE AVALIAÇÃO (alunos por ${st.isBasico?'nível':'intervalo'})</span>
+      <div class="cfc-prevs">${prevHtml}</div>
+      </div>
+      <div class="cfc-blk">
+      <span class="cfc-sec" style="background:#b45309">LEITURA POR MODALIDADE (sugestões automáticas a validar em conferência)</span>
+      <div class="cfc-grid4">${matCards}</div>
+      <div class="cfc-leg">${CFC_NIVEIS.map(k=>`<span><i style="background:${CFC_COR[k]}"></i>${k}</span>`).join('')}</div>
+      </div>
+      <div class="cfc-blk">
+      <span class="cfc-sec" style="background:#92400e">LEITURA GERAL</span>
+      <div class="cfc-box"><ul style="margin:0;padding-left:16px">${leitura.map(x=>`<li>${x}</li>`).join('')}</ul></div>
+      </div>
+      <div class="cfc-blk">
+      <span class="cfc-sec" style="background:#7c3aed">DECISÕES DA CONFERÊNCIA CURRICULAR</span>
+      <table class="cfc-table"><thead><tr><th style="width:18%">Matéria</th><th>Nível de exigência</th><th>Estratégias e observações</th></tr></thead><tbody>${decRows}</tbody></table>
+      </div>
+      <div class="cfc-blk">
+      <span class="cfc-sec" style="background:#475569">REGISTO</span>
+      <div class="cfc-grid4">
+        <div><div style="font-size:9.5px;color:#64748b;margin-bottom:2px">Data da conferência</div><input type="date" class="cfc-in" value="${esc(conf.data||'')}" onchange="cfcSet(${turma.id},'data',null,this.value)"></div>
+        <div><div style="font-size:9.5px;color:#64748b;margin-bottom:2px">Participantes</div><input type="text" class="cfc-in" value="${esc(conf.participantes||'')}" onchange="cfcSet(${turma.id},'participantes',null,this.value)"></div>
+      </div>
+      <div style="font-size:9.5px;color:#64748b;margin:6px 0 2px">Áreas prioritárias e deliberações</div>
+      <textarea class="cfc-in cfc-ta" rows="3" onchange="cfcSet(${turma.id},'notas',null,this.value)">${esc(conf.notas||'')}</textarea>
+      </div>
+      <div class="cfc-foot"><span>${esc(S.escola||'')} · ${esc(S.anoLetivo||'')}</span><span>Conferência Curricular · AID</span><span>Gerado em ${hoje}</span></div>
+    </div>
+  </div>
+  <div class="modal-actions" style="padding:12px 24px;border-top:1px solid var(--border)">
+    <button class="btn" onclick="modal=null;render();">Fechar</button>
+    <button class="btn btn-primary" id="cfcExportBtn" onclick="cfcExportPDF(${turma.id},this)">📄 Exportar PDF</button>
+  </div></div></div>`;
+}
+
+async function cfcExportPDF(turmaId,btn){
+  const turma=S.turmas.find(t=>t.id==turmaId);
+  const orig=btn.innerHTML; btn.disabled=true; btn.innerHTML='⏳ A gerar…';
+  try{
+    if(typeof html2canvas==='undefined'){
+      await new Promise((res,rej)=>{ const s=document.createElement('script'); s.src='https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js'; s.onload=res; s.onerror=rej; document.head.appendChild(s); });
+    }
+    const {jsPDF}=window.jspdf;
+    const pdf=new jsPDF('p','mm','a4');
+    const margin=8, maxW=210-margin*2, maxH=297-margin*2;
+    const pages=[...document.querySelectorAll('#cfcContent .cfc-pag')];
+    for(let i=0;i<pages.length;i++){
+      const el=pages[i];
+      const canvas=await html2canvas(el,{scale:2,backgroundColor:'#ffffff',useCORS:true,height:el.scrollHeight,windowHeight:el.scrollHeight,
+        onclone:(doc)=>{ // campos de formulário passam a texto, para saírem no PDF
+          doc.querySelectorAll('textarea').forEach(t=>{ const d=doc.createElement('div'); d.style.cssText='font-size:10.5px;white-space:pre-wrap;min-height:18px;color:#1a2d4a'; d.textContent=t.value||'—'; t.replaceWith(d); });
+          doc.querySelectorAll('select').forEach(s=>{ const d=doc.createElement('div'); d.style.cssText='font-size:11px;font-weight:700;color:#1a2d4a'; d.textContent=s.value||'—'; s.replaceWith(d); });
+          doc.querySelectorAll('input').forEach(s=>{ const d=doc.createElement('div'); d.style.cssText='font-size:10.5px;color:#1a2d4a;min-height:16px'; d.textContent=s.value||'—'; s.replaceWith(d); });
+        }});
+      // Se a página for muito mais alta que uma folha A4, parte-a entre secções
+      const k=canvas.width/el.offsetWidth;
+      const cap=maxH*(el.offsetWidth/maxW);
+      const topEl=el.getBoundingClientRect().top;
+      const blocos=[]; let cur=null;
+      [...el.children].forEach(ch=>{
+        const r=ch.getBoundingClientRect();
+        const t=r.top-topEl, b=r.bottom-topEl;
+        if(!cur||ch.classList.contains('cfc-sec')||ch.classList.contains('cfc-blk')){ cur={top:t,bottom:b}; blocos.push(cur); }
+        else cur.bottom=Math.max(cur.bottom,b);
+      });
+      // Página ligeiramente mais alta que a folha: ajusta-a à folha (mantém sempre 2 páginas no PDF)
+      if(el.scrollHeight<=cap+2){ // cabe numa folha: página inteira
+        const hMM0=maxW*canvas.height/canvas.width;
+        if(i>0) pdf.addPage();
+        pdf.addImage(canvas.toDataURL('image/jpeg',0.92),'JPEG',margin,margin,maxW,Math.min(hMM0,maxH),undefined,'FAST');
+        continue;
+      }
+      if(el.scrollHeight>cap&&cap/el.scrollHeight>=0.74){
+        const wMM=maxW*cap/el.scrollHeight;
+        if(i>0) pdf.addPage();
+        pdf.addImage(canvas.toDataURL('image/jpeg',0.92),'JPEG',margin+(maxW-wMM)/2,margin,wMM,maxH,undefined,'FAST');
+        continue;
+      }
+      const cortes=[]; let ini=0;
+      blocos.forEach(bl=>{ if(bl.bottom-ini>cap&&bl.top>ini+1){ cortes.push([ini,bl.top]); ini=bl.top; } });
+      cortes.push([ini,el.scrollHeight]);
+      for(let j=0;j<cortes.length;j++){
+        let [y0,y1]=cortes[j];
+        if(y1-y0>cap) y1=y0+cap;
+        const hPx=Math.max(1,Math.round((y1-y0)*k));
+        const c2=document.createElement('canvas'); c2.width=canvas.width; c2.height=hPx;
+        const cx=c2.getContext('2d'); cx.fillStyle='#fff'; cx.fillRect(0,0,c2.width,c2.height);
+        cx.drawImage(canvas,0,Math.round(y0*k),canvas.width,hPx,0,0,canvas.width,hPx);
+        const hMM=maxW*hPx/canvas.width;
+        if(i>0||j>0) pdf.addPage();
+        pdf.addImage(c2.toDataURL('image/jpeg',0.92),'JPEG',margin,margin,maxW,hMM,undefined,'FAST');
+      }
+    }
+    pdf.save(`Conferencia_Curricular_${String(turma?.nome||'turma').replace(/[^\wÀ-ÿ]+/g,'_')}.pdf`);
+  }catch(e){ alert('Erro ao gerar o PDF: '+(e&&e.message?e.message:e)); }
+  finally{ btn.disabled=false; btn.innerHTML=orig; }
+}
+
 // ── Relatório PDF de toda a turma (um só ficheiro) ──
 function ccAlunoTemDados(turma,nome){
   const d=S.avaliacao?.[`${turma.id}__compcorp`]||{};
@@ -7149,6 +7584,7 @@ function renderModal(){
   if(modal.type==='detalheFaltas') return renderDetalheFaltasModal();
   if(modal.type==='relatorioAluno') return renderRelatorioAlunoModal();
   if(modal.type==='relatorioCC') return renderRelatorioCCModal();
+  if(modal.type==='confCurr') return renderConferenciaCurricularModal();
   if(modal.type==='editAula'){
     const aula=S.horario[modal.slot]||{};
     const weekKey=modal.weekKey||'';
@@ -8230,6 +8666,9 @@ function attachEvents(){
       modal={type:'relatorioAluno', turmaId:parseInt(el.dataset.turma), nome:el.dataset.nome};
       render();
     });
+  });
+  document.querySelectorAll('.btn-conf-curr').forEach(b=>{
+    b.addEventListener('click',()=>{ modal={type:'confCurr',turmaId:parseInt(b.dataset.turma)}; render(); });
   });
   document.querySelectorAll('.btn-relatorio-turma').forEach(b=>{
     b.addEventListener('click',()=>relatorioTurmaPDF(b.dataset.tipo,parseInt(b.dataset.turma),b));
