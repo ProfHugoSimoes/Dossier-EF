@@ -4743,14 +4743,13 @@ function renderHistoricoEF(turma){
 function getResumoFaltasAluno(turmaId, nomeAluno, semestre){
   let totalAulas=0, assistidas=0;
   const porTipo={fp:0,fa:0,fm:0,fd:0,dp:0};
-  const semNorm=String(semestre)==='2'||String(semestre)==='sem2'?2:1;
+  const normPer=v=>{ const s=String(v); return (s==='3'||s==='sem3')?3:(s==='2'||s==='sem2')?2:1; };
+  const semNorm=normPer(semestre);
   const fimTurma=getFimAnoTurma(turmaId);
   const inicioTurma=getInicioAnoTurma(turmaId);
   Object.entries(S.sumarios).forEach(([sumKey, sum])=>{
     if(sum.turmaId!=turmaId || !sum.sumario) return;
-    const sumSem=String(sum.semestre||'1');
-    const sumSemNorm=sumSem==='sem2'||sumSem==='2'?2:1;
-    if(sumSemNorm!==semNorm) return;
+    if(normPer(sum.semestre||'1')!==semNorm) return;
     const dt=sumKey.split('_')[0];
     if(dt&&(dt>fimTurma||dt<inicioTurma)) return;
     totalAulas++;
@@ -5720,18 +5719,16 @@ function renderAlunoModal(){
     </tr>`;
   }).join('');
 
-  // ── Faltas ─────────────────────────────────────────────────────────────────
-  let nPresencas=0,nFP=0,nFA=0,nFM=0,nFD=0;
-  Object.entries(S.sumarios||{}).forEach(([sumKey,s])=>{
-    if(!s||s.turmaId!=turma.id||!s.sumario) return;
-    const falta=(S.faltas||{})[sumKey]?.[nome]||'';
-    if(falta==='FP') nFP++;
-    else if(falta==='FA') nFA++;
-    else if(falta==='FM') nFM++;
-    else if(falta==='FD') nFD++;
-    else nPresencas++;
-  });
-  const totalAulas=nPresencas+nFP+nFA+nFM+nFD;
+  // ── Presenças e faltas por semestre/período (S.faltas guarda fp/fa/fm/fd/dp) ──
+  const resPer=Array.from({length:nPer},(_,i)=>({lab:getLabelPeriodo(i+1),...getResumoFaltasAluno(turma.id,nome,i+1)}));
+  const tot={aulas:0,assist:0,fp:0,fa:0,fm:0,fd:0,dp:0};
+  resPer.forEach(r=>{ tot.aulas+=r.totalAulas; tot.assist+=r.assistidas; ['fp','fa','fm','fd','dp'].forEach(k=>{ tot[k]+=r.porTipo[k]||0; }); });
+  const celF=(v,cor)=>`<td style="padding:5px 8px;font-size:12px;text-align:center;border:1px solid var(--border);font-weight:${v?'800':'400'};color:${v?cor:'var(--gray)'}">${v}</td>`;
+  const linhaF=(lab,r,bg)=>`<tr${bg?` style="background:${bg}"`:''}>
+      <td style="padding:5px 8px;font-size:12px;font-weight:700;border:1px solid var(--border);color:var(--navy)">${lab}</td>
+      ${celF(r.aulas,'var(--navy)')}${celF(r.assist,'var(--green)')}${celF(r.fp,'#dc2626')}${celF(r.fa,'#d97706')}${celF(r.fm,'#2563eb')}${celF(r.fd,'#7c3aed')}${celF(r.dp,'#16a34a')}
+    </tr>`;
+  const faltasPerRows=resPer.map(r=>linhaF(r.lab,{aulas:r.totalAulas,assist:r.assistidas,fp:r.porTipo.fp,fa:r.porTipo.fa,fm:r.porTipo.fm,fd:r.porTipo.fd,dp:r.porTipo.dp})).join('')+linhaF('Total do ano',tot,'#f0f4ff');
 
   return `<div class="aluno-modal-overlay" id="alunoModalOverlay">
     <div class="aluno-modal">
@@ -5747,12 +5744,21 @@ function renderAlunoModal(){
         <div class="aluno-section">
           <div class="aluno-section-title">📊 Presenças e Faltas</div>
           <div class="aluno-grid">
-            <div class="aluno-stat-card"><div class="aluno-stat-label">Aulas</div><div class="aluno-stat-val">${totalAulas}</div></div>
-            <div class="aluno-stat-card"><div class="aluno-stat-label">Presenças</div><div class="aluno-stat-val" style="color:var(--green)">${nPresencas}</div></div>
-            <div class="aluno-stat-card"><div class="aluno-stat-label">F. Presença</div><div class="aluno-stat-val" style="color:#dc2626">${nFP}</div></div>
-            <div class="aluno-stat-card"><div class="aluno-stat-label">F. Atraso</div><div class="aluno-stat-val" style="color:#d97706">${nFA}</div></div>
-            <div class="aluno-stat-card"><div class="aluno-stat-label">F. Material</div><div class="aluno-stat-val" style="color:#2563eb">${nFM}</div></div>
-            <div class="aluno-stat-card"><div class="aluno-stat-label">F. Disciplinar</div><div class="aluno-stat-val" style="color:#7c3aed">${nFD}</div></div>
+            <div class="aluno-stat-card"><div class="aluno-stat-label">Aulas</div><div class="aluno-stat-val">${tot.aulas}</div></div>
+            <div class="aluno-stat-card"><div class="aluno-stat-label">Presenças</div><div class="aluno-stat-val" style="color:var(--green)">${tot.assist}</div></div>
+            <div class="aluno-stat-card"><div class="aluno-stat-label">F. Presença</div><div class="aluno-stat-val" style="color:#dc2626">${tot.fp}</div></div>
+            <div class="aluno-stat-card"><div class="aluno-stat-label">F. Atraso</div><div class="aluno-stat-val" style="color:#d97706">${tot.fa}</div></div>
+            <div class="aluno-stat-card"><div class="aluno-stat-label">F. Material</div><div class="aluno-stat-val" style="color:#2563eb">${tot.fm}</div></div>
+            <div class="aluno-stat-card"><div class="aluno-stat-label">F. Disciplinar</div><div class="aluno-stat-val" style="color:#7c3aed">${tot.fd}</div></div>
+            <div class="aluno-stat-card"><div class="aluno-stat-label">Disp. Prática</div><div class="aluno-stat-val" style="color:#16a34a">${tot.dp}</div></div>
+          </div>
+          <div style="overflow-x:auto;margin-top:12px">
+          <table style="width:100%;border-collapse:collapse">
+            <thead><tr>
+              ${['','Aulas','Presenças','F. Presença','F. Atraso','F. Material','F. Disciplinar','Disp. Prática'].map((h,i)=>`<th style="padding:5px 8px;background:var(--navy);color:#fff;font-size:11px;text-align:${i?'center':'left'};border:1px solid rgba(255,255,255,0.2)">${h||'Período'}</th>`).join('')}
+            </tr></thead>
+            <tbody>${faltasPerRows}</tbody>
+          </table>
           </div>
         </div>
 
@@ -8058,7 +8064,7 @@ function attachEvents(){
         const closeBtn=modalEl.querySelector('#closeAlunoModal');
         if(closeBtn) closeBtn.addEventListener('click',()=>{ modalEl.remove(); alunoModalNome=null; alunoModalTurmaId=null; });
       }
-    },{once:true});
+    });  // sem {once:true}: a ficha do aluno tem de poder abrir-se de novo depois de fechada
   });
 
   // Configurações Modal
