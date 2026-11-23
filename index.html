@@ -67,6 +67,11 @@
   .grid-5{display:grid;grid-template-columns:repeat(5,1fr);gap:12px}
   .grid-5>*{min-width:0}
   @media(max-width:600px){.grid-5{grid-template-columns:repeat(2,1fr)}.grid-5>:last-child{grid-column:span 2}}
+  /* Painel (computador): páginas de Modalidades e Avaliação compactas, sem scroll vertical */
+  .painel-compacto .card{margin-bottom:0!important;padding:10px 12px!important}
+  .painel-compacto table{min-width:0!important}
+  .painel-compacto tbody td:first-child{white-space:nowrap}
+  .painel-compacto tbody td,.painel-compacto tfoot td{padding-top:var(--cpy,3px)!important;padding-bottom:var(--cpy,3px)!important;font-size:var(--cfs,11px)!important;line-height:1.15!important}
   .turma-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:14px}
 
   /* Turma card */
@@ -1128,6 +1133,40 @@ function renderSidebar(){
 }
 
 function isMobile(){ return window.innerWidth <= 600; }
+
+// Ajusta o tamanho das linhas das tabelas do painel (computador) para caberem na altura do ecrã
+function ajustarPainelCompacto(){
+  const el=document.getElementById('painelCompacto');
+  if(!el||!el.classList.contains('painel-compacto')) return;
+  // Resumo anual: dá mais largura à coluna do nome (as notas só precisam de 2 dígitos)
+  const tb=el.querySelector('table');
+  if(tb&&!tb.querySelector('colgroup')){
+    const ths=tb.querySelectorAll('thead tr:first-child th');
+    const nT=ths.length, nc=nT?(parseInt(ths[0].getAttribute('colspan'))||3):0;
+    if(nT&&nc>=3){
+      const pn=nc===3?20:16, pName=100-pn*(nc-1), cg=document.createElement('colgroup');
+      for(let i=0;i<nT;i++){ for(let j=0;j<nc;j++){ const c=document.createElement('col'); c.style.width=((j===0?pName:pn)/nT)+'%'; cg.appendChild(c); } }
+      tb.insertBefore(cg,tb.firstChild);
+    }
+  }
+  const niveis=[[4,12],[3.5,11.5],[3,11],[2.5,10.5],[2,10],[1.5,9.5],[1,9],[0.5,8.5],[0,8]];
+  // há scroll vertical? (no contentor da app ou na própria janela)
+  const temScrollV=()=>{
+    let p=el.parentElement;
+    while(p&&p!==document.body){
+      const oy=getComputedStyle(p).overflowY;
+      if((oy==='auto'||oy==='scroll')&&p.scrollHeight>p.clientHeight+1) return true;
+      p=p.parentElement;
+    }
+    const se=document.scrollingElement||document.documentElement;
+    return se.scrollHeight>window.innerHeight+1;
+  };
+  for(const [py,fs] of niveis){
+    el.style.setProperty('--cpy',py+'px'); el.style.setProperty('--cfs',fs+'px');
+    if(!temScrollV()) return;
+  }
+}
+if(!window.__painelResizeLigado){ window.__painelResizeLigado=true; window.addEventListener('resize',()=>{ if(document.getElementById('painelCompacto')) ajustarPainelCompacto(); }); }
 
 function renderTab(){
   if(currentTab!=='painel') painelVista=null;
@@ -3406,16 +3445,19 @@ function renderPainel(){
     : 'background:var(--gray2);color:var(--gray);border-color:var(--border)';
 
   const _mob=isMobile();
-  if(_mob&&painelVista){
-    return `<div>
-      <button class="btn" id="painelVoltarBtn" style="margin-bottom:12px;font-weight:700;display:inline-flex;align-items:center;gap:6px">← Painel principal</button>
+  if(painelVista){
+    return `<div id="painelCompacto"${_mob?'':' class="painel-compacto"'}>
+      <button class="btn" id="painelVoltarBtn" style="margin-bottom:${_mob?12:8}px;font-weight:700;display:inline-flex;align-items:center;gap:6px">← Painel principal</button>
       ${painelVista==='mod'?modSection:renderResumoAnual()}
     </div>`;
   }
-  const _btnMob=(id,cor1,cor2,ico,l1,l2)=>`<button type="button" id="${id}" style="background:linear-gradient(135deg,${cor1},${cor2});color:#fff;border:none;border-radius:12px;padding:10px 6px;font-weight:700;font-size:13px;line-height:1.2;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:3px;min-height:68px;cursor:pointer;box-shadow:0 2px 6px rgba(15,23,42,.25);touch-action:manipulation;font-family:inherit"><span style="font-size:20px;line-height:1">${ico}</span><span>${l1}<br>${l2}</span></button>`;
-  const botoesMob=`<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:10px">
-    ${_btnMob('painelBtnMod','#0d9488','#0f766e','📊','Modalidades','Lecionadas')}
-    ${_btnMob('painelBtnResumo','#f97316','#c2410c','📋','Avaliação','Resumo anual')}
+  const _btnMob=(id,cor1,cor2,ico,l1,l2,sub)=>_mob
+    ? `<button type="button" id="${id}" style="background:linear-gradient(135deg,${cor1},${cor2});color:#fff;border:none;border-radius:12px;padding:10px 6px;font-weight:700;font-size:13px;line-height:1.2;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:3px;min-height:68px;cursor:pointer;box-shadow:0 2px 6px rgba(15,23,42,.25);touch-action:manipulation;font-family:inherit"><span style="font-size:20px;line-height:1">${ico}</span><span>${l1}<br>${l2}</span></button>`
+    : `<button type="button" id="${id}" style="background:linear-gradient(135deg,${cor1},${cor2});color:#fff;border:none;border-radius:20px;padding:16px;font-weight:700;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:clamp(6px,1.4vh,14px);cursor:pointer;box-shadow:0 6px 18px rgba(15,23,42,.28);font-family:inherit;width:100%;height:100%;transition:transform .12s,box-shadow .12s" onmouseover="this.style.transform='translateY(-3px)';this.style.boxShadow='0 10px 24px rgba(15,23,42,.35)'" onmouseout="this.style.transform='';this.style.boxShadow='0 6px 18px rgba(15,23,42,.28)'"><span style="font-size:clamp(38px,7.5vh,80px);line-height:1">${ico}</span><span style="font-size:clamp(18px,3.2vh,32px);line-height:1.15;text-align:center">${l1}${l1==='Avaliação'?' —':''} ${l2}</span><span style="font-size:clamp(12px,1.9vh,17px);font-weight:500;opacity:.9;text-align:center">${sub||''}</span></button>`;
+  const _nModsLec=Object.keys(getAllModalidadesCountsBySem()).length;
+  const botoesMob=`<div style="display:grid;grid-template-columns:1fr 1fr;gap:${_mob?8:20}px;${_mob?'flex:0 0 auto':'flex:1 1 0;min-height:0'}">
+    ${_btnMob('painelBtnMod','#0d9488','#0f766e','📊','Modalidades','Lecionadas',`${_nModsLec} modalidade${_nModsLec===1?'':'s'} · ${totalAulas} aulas sumariadas`)}
+    ${_btnMob('painelBtnResumo','#f97316','#c2410c','📋','Avaliação','Resumo anual',`${totalTurmas} turmas · ${totalAlunos} alunos · notas finais por semestre`)}
   </div>`;
 
   return `<div>
@@ -3428,21 +3470,22 @@ function renderPainel(){
       </button>
       </div>
     </div>
-    <div class="grid-5" style="margin-bottom:${_mob?0:20}px;${_mob?'gap:8px':''}">
+    <div style="${_mob?'display:flex;flex-direction:column;gap:10px;height:calc(100vh - 222px);height:calc(100dvh - 222px);min-height:400px':'display:flex;flex-direction:column;gap:20px;height:calc(100vh - 205px);min-height:440px'}">
+    <div class="grid-5" style="${_mob?'gap:8px;flex:1 1 0;min-height:0;grid-template-rows:repeat(3,1fr)':'flex:1.15 1 0;min-height:0;gap:18px'}">
       ${[
         {l:'Turmas',v:totalTurmas,c:'var(--blue)',i:'🏫'},
         {l:'Alunos',v:totalAlunos,c:'var(--navy)',i:'👥'},
         {l:'Aulas Previstas',v:totalPrevistas,c:'var(--amber)',i:'📅'},
         {l:'Aulas Dadas',v:totalAulas,c:'var(--green)',i:'✅'},
         {l:'Aulas por dar',v:Math.max(0,totalPrevistas-totalAulas),c:'var(--purple)',i:'⏳'},
-      ].map(s=>`<div class="card" style="text-align:center;background:var(--gray2);${_mob?'padding:8px 6px':''}">
-        <div style="font-size:${_mob?16:20}px;margin-bottom:${_mob?1:4}px">${s.i}</div>
-        <div style="font-size:${_mob?10:11}px;color:var(--gray);font-weight:600;text-transform:uppercase;letter-spacing:0.5px;margin-bottom:${_mob?1:4}px">${s.l}</div>
-        <div style="font-family:'Oswald',sans-serif;font-size:${_mob?26:36}px;font-weight:700;line-height:1.1;color:${s.c}">${s.v}</div>
+      ].map(s=>`<div class="card" style="text-align:center;background:var(--gray2);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:${_mob?'2px':'clamp(2px,0.8vh,8px)'};${_mob?'padding:6px':''}">
+        <div style="font-size:${_mob?'clamp(22px,4vh,34px)':'clamp(30px,6vh,58px)'};margin-bottom:${_mob?1:0}px">${s.i}</div>
+        <div style="font-size:${_mob?'clamp(10px,1.8vh,13px)':'clamp(12px,2.1vh,18px)'};color:var(--gray);font-weight:600;text-transform:uppercase;letter-spacing:0.5px;margin-bottom:${_mob?1:0}px">${s.l}</div>
+        <div style="font-family:'Oswald',sans-serif;font-size:${_mob?'clamp(32px,6.8vh,58px)':'clamp(46px,10.5vh,100px)'};font-weight:700;line-height:1.1;color:${s.c}">${s.v}</div>
       </div>`).join('')}
     </div>
-    ${_mob?botoesMob:`${modSection}
-    ${renderResumoAnual()}`}
+    ${botoesMob}
+    </div>
   </div>`;
 }
 
@@ -8090,6 +8133,7 @@ function attachEvents(){
   if(pBtnRes) pBtnRes.addEventListener('click',()=>{ painelVista='resumo'; render(); _irTopo(); });
   const pVoltar=document.getElementById('painelVoltarBtn');
   if(pVoltar) pVoltar.addEventListener('click',()=>{ painelVista=null; render(); _irTopo(); });
+  if(document.getElementById('painelCompacto')) requestAnimationFrame(ajustarPainelCompacto);
 
   // Configurações Modal
   const openCfgBtn=document.getElementById('openCfgBtn');
