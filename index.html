@@ -109,7 +109,17 @@
   .aula-cell{padding:6px 8px;min-height:52px;cursor:pointer;transition:background 0.1s;position:relative}
   .aula-cell:hover{background:var(--sky)}
   .aula-cell.empty{background:#fafafa}
-  .aula-cell.has-aula{background:#fff}
+  /* Plano Semanal: cada aula como um botão individual, com moldura */
+  .aula-cell.has-aula{margin:5px;border:1.5px solid #bcd0f2;border-radius:12px;background:linear-gradient(180deg,#ffffff,#f3f7ff);box-shadow:0 1px 3px rgba(15,23,42,.10);transition:transform .12s,box-shadow .12s,border-color .12s,background .12s}
+  .aula-cell.has-aula:hover{transform:translateY(-1px);box-shadow:0 5px 12px rgba(37,99,235,.22);border-color:var(--blue);background:var(--sky)}
+  .aula-cell.has-aula.sum-ok{border-color:#7fd9a0;background:linear-gradient(180deg,#ffffff,#effcf3)}
+  .aula-cell.has-aula.sum-ok:hover{border-color:var(--green);box-shadow:0 5px 12px rgba(22,163,74,.25);background:#e8fbee}
+  .aula-cell.has-aula{border-left-width:5px;padding:7px 9px}
+  .aula-turma{font-size:12.5px;letter-spacing:.2px}
+  .aula-espaco{margin:3px 0 4px}
+  .aula-esp-chip{display:inline-block;font-size:10px;font-weight:800;line-height:1.2;padding:1px 8px;border-radius:10px;letter-spacing:.3px}
+  .aula-modal{font-size:11px;font-weight:600;color:#334155}
+  .aula-sum-pill{display:inline-block;font-size:9px;font-weight:700;color:#15803d;background:#dcfce7;border:1px solid #86efac;border-radius:10px;padding:0 6px}
   .aula-turma{font-weight:700;color:var(--navy);font-size:11px}
   .aula-espaco{font-size:10px;color:var(--blue);font-weight:600}
   .aula-modal{font-size:10px;color:var(--gray)}
@@ -226,6 +236,10 @@
     .schedule-table td{min-width:0;padding:0}
     .time-col{width:34px;min-width:34px;max-width:34px;font-size:8px;padding:3px 2px;white-space:normal;word-break:break-all;line-height:1.2}
     .aula-cell{padding:3px 2px;min-height:38px;font-size:8px}
+    .aula-cell.has-aula{margin:2px;border-width:1px;border-left-width:3px;border-radius:7px;padding:3px 3px}
+    .aula-esp-chip{font-size:7px;padding:0 4px}
+    .aula-modal{font-size:7px}
+    .aula-sum-pill{font-size:7px;padding:0 4px}
     .aula-turma{font-size:8px}
     .aula-espaco{font-size:7px}
     .aula-modal{font-size:7px}
@@ -1133,6 +1147,11 @@ function renderSidebar(){
 }
 
 function isMobile(){ return window.innerWidth <= 600; }
+
+// Cores dos espaços no Plano Semanal (G = ginásio, E = exterior)
+const COR_ESPACO={G1:'#ea580c',G2:'#db2777',E1:'#0d9488',E2:'#2563eb'};
+function corEspaco(e){ return COR_ESPACO[String(e||'').trim().toUpperCase()]||'#64748b'; }
+function chipEspaco(e){ const c=corEspaco(e); return `<span class="aula-esp-chip" style="color:${c};background:${c}1f;border:1px solid ${c}66">${esc(e)}</span>`; }
 
 // Ajusta o tamanho das linhas das tabelas do painel (computador) para caberem na altura do ecrã
 function ajustarPainelCompacto(){
@@ -5376,18 +5395,18 @@ function renderSemanal(){
           const wxHtml = wx
             ? `<div style="position:absolute;top:3px;right:4px;text-align:center;line-height:1" title="${wx.desc} · ${wx.tempMin}°–${wx.tempMax}°C"><div style="font-size:20px">${wx.icon}</div><div style="font-size:9px;color:var(--gray);font-weight:600">${wx.tempMin}°–${wx.tempMax}°</div></div>`
             : '';
-          return `<td><div class="aula-cell has-aula" data-slot="${slot}" data-date="${dt||''}" data-sumkey="${sumKey}" data-weekkey="${weekKey}" data-turma="${turmaIdSlot}" style="position:relative">
+          return `<td><div class="aula-cell has-aula${temSum?' sum-ok':''}" data-slot="${slot}" data-date="${dt||''}" data-sumkey="${sumKey}" data-weekkey="${weekKey}" data-turma="${turmaIdSlot}" style="position:relative;border-left-color:${corEspaco(espacoRot)}">
             ${wxHtml}
             <div class="aula-turma">${esc(turmaObj.nome)}</div>
-            <div class="aula-espaco">${espacoRot||''}</div>
+            <div class="aula-espaco">${espacoRot?chipEspaco(espacoRot):''}</div>
             <div class="aula-modal">${modalidadeSemana||'<span style="color:#ccc;font-style:italic">modalidade</span>'}</div>
-            ${temSum?`<div style="font-size:9px;margin-top:2px;line-height:1.3"><span style="color:var(--green)">✓ Sum.</span>${modalidadeDada?`<span style="color:${modalidadeDada!==modalidadeSemana?'#dc2626':'var(--gray)'};font-weight:${modalidadeDada!==modalidadeSemana?'700':'400'}" title="${modalidadeDada!==modalidadeSemana?'Diferente da modalidade planeada ('+esc(modalidadeSemana||'—')+')':'Igual à modalidade planeada'}"> · ${esc(modalidadeDada)}</span>`:''}</div>`:''}
+            ${temSum?`<div style="font-size:9px;margin-top:2px;line-height:1.3"><span class="aula-sum-pill">✓ Sumário</span>${modalidadeDada?`<span style="color:${modalidadeDada!==modalidadeSemana?'#dc2626':'var(--gray)'};font-weight:${modalidadeDada!==modalidadeSemana?'700':'400'}" title="${modalidadeDada!==modalidadeSemana?'Diferente da modalidade planeada ('+esc(modalidadeSemana||'—')+')':'Igual à modalidade planeada'}"> · ${esc(modalidadeDada)}</span>`:''}</div>`:''}
           </div></td>`;
         }).join('')}
       </tr>`).join('')}</tbody>
     </table>
     </div>
-    <p style="font-size:11px;color:var(--gray);margin-top:12px">💡 Clique numa aula para editar. Configure o horário base no Calendário Letivo.${isCurrentWeek?' · 🌤️ Meteorologia de Setúbal (Open-Meteo)':''}</p>`}
+    <p style="font-size:11px;color:var(--gray);margin-top:12px">💡 Clique numa aula para editar. Configure o horário base no Calendário Letivo. · Espaços: ${['G1','G2','E1','E2'].map(chipEspaco).join(' ')}${isCurrentWeek?' · 🌤️ Meteorologia de Setúbal (Open-Meteo)':''}</p>`}
   </div>`;
 }
 
