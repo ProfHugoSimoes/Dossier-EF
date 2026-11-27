@@ -30,7 +30,7 @@
     --green:#16a34a;--green2:#dcfce7;--red:#dc2626;--red2:#fee2e2;
     --amber:#d97706;--amber2:#fef3c7;--purple:#7c3aed;--purple2:#ede9fe;
     --gray:#64748b;--gray2:#f1f5f9;--border:#e2e8f0;
-    --card:#fff;--sidebar-w:220px;--header-h:64px
+    --card:#fff;--sidebar-w:300px;--header-h:64px
   }
   .app{display:flex;flex-direction:column;height:100vh}
   .header{background:var(--navy);color:#fff;height:var(--header-h);display:flex;align-items:center;padding:0 20px;gap:16px;flex-shrink:0;border-bottom:1px solid rgba(255,255,255,0.1);position:sticky;top:0;z-index:100;box-shadow:0 2px 8px rgba(0,0,0,0.25)}
@@ -51,9 +51,20 @@
   .nav-item:hover{background:rgba(255,255,255,0.08);color:#fff}
   .nav-item.active{background:rgba(96,165,250,0.15);color:#60a5fa;border-left-color:#60a5fa}
   .nav-icon{width:20px;height:20px;display:flex;align-items:center;justify-content:center;flex-shrink:0}
-  .sidebar-footer{padding:12px;border-top:1px solid rgba(255,255,255,0.1);display:flex;flex-direction:column;align-items:center;gap:8px}
-  .logo-wrapper{width:100%;flex:1;display:flex;align-items:center;justify-content:center;min-height:60px}
-  .logo-preview{width:100%;height:auto;max-height:140px;object-fit:contain;border-radius:6px;display:block}
+  /* Painel lateral em cartões (igual ao ecrã inicial do mobile) */
+  .nav-items.nav-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:6px;padding:8px 10px;align-content:start;overflow-y:auto}
+  .nav-items.nav-grid .nav-item[data-tab="painel"]{grid-column:1/-1}
+  .nav-items.nav-grid .nav-item{flex-direction:column;justify-content:center;gap:3px;padding:6px 3px;border:1px solid rgba(255,255,255,0.12);border-left:1px solid rgba(255,255,255,0.12);border-radius:12px;background:rgba(255,255,255,0.07);text-align:center;color:#fff}
+  .nav-items.nav-grid .nav-item:hover{background:rgba(255,255,255,0.14)}
+  .nav-items.nav-grid .nav-item.active{background:rgba(96,165,250,0.2);border-color:#60a5fa;color:#fff}
+  .nav-items.nav-grid .nav-icon{width:26px;height:26px}
+  .nav-items.nav-grid .nav-icon svg{width:24px;height:24px}
+  .nav-card-label{font-size:11px;font-weight:600;line-height:1.2;color:#fff}
+  .nav-card-sub{display:none;font-size:9px;line-height:1.2;color:rgba(255,255,255,0.45)}
+  .sidebar-footer{padding:6px 10px;border-top:1px solid rgba(255,255,255,0.1);display:flex;flex-direction:column;align-items:center;gap:6px;flex-shrink:0}
+  .logo-wrapper{width:100%;flex:none;display:flex;align-items:center;justify-content:center;min-height:40px}
+  .logo-preview{width:100%;height:auto;max-height:none;object-fit:contain;border-radius:10px;display:block}
+  @media(max-height:670px){.logo-preview{max-height:150px}}
   .logo-placeholder{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:4px;color:rgba(255,255,255,0.2);font-size:11px;text-align:center;width:100%;min-height:60px}
   .logo-edit-btn{width:100%;padding:6px;border-radius:6px;border:1px solid rgba(255,255,255,0.15);background:rgba(255,255,255,0.06);color:rgba(255,255,255,0.5);font-size:11px;cursor:pointer;text-align:center;transition:all 0.15s}
   .logo-edit-btn:hover{background:rgba(255,255,255,0.12);color:#fff;border-color:rgba(255,255,255,0.3)}
@@ -215,7 +226,8 @@
 
   @media(max-width:900px){
     .turma-grid{grid-template-columns:repeat(2,1fr)}
-    .sidebar{width:180px}
+    .sidebar{width:240px}
+    .nav-card-sub{display:none}
   }
   @media(max-width:600px){
     .turma-grid{grid-template-columns:1fr}
@@ -339,6 +351,10 @@
   .tr-timer-display{font-family:'Bebas Neue','Arial Narrow',monospace;font-size:42px;letter-spacing:2px;min-width:110px;text-align:center;line-height:1;transition:color 0.3s}
   .tr-timer-display.running{color:var(--green)}
   .tr-timer-display.paused{color:var(--amber)}
+  .tr-mode-switch{display:inline-flex;background:rgba(255,255,255,0.08);border:1px solid rgba(255,255,255,0.15);border-radius:20px;padding:2px;gap:2px}
+  .tr-mode-btn{border:none;background:transparent;color:rgba(255,255,255,0.55);font-family:inherit;font-weight:700;font-size:11px;padding:4px 10px;border-radius:18px;cursor:pointer;touch-action:manipulation;white-space:nowrap}
+  .tr-mode-btn.active{background:#2563eb;color:#fff}
+  body.tr-modo-crono .tr-only-timer{display:none!important}
   .tr-timer-display.stopped{color:var(--navy)}
   .tr-timer-display.overtime{color:var(--red)}
   .tr-timer-label{font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:0.6px;color:var(--gray);text-align:center;margin-top:2px}
@@ -1129,12 +1145,15 @@ function renderSidebar(){
     {id:'rotacao', icon:`<svg viewBox="0 0 24 24" fill="none" stroke="#c084fc" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" width="16" height="16"><polyline points="1 4 1 10 7 10"/><path d="M3.51 15a9 9 0 1 0 .49-3.5"/></svg>`,label:'Mapas de Rotação'},
     {id:'torneios',icon:`<svg viewBox="0 0 24 24" fill="none" stroke="#fcd34d" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" width="16" height="16"><path d="M6 9H4.5a2.5 2.5 0 0 1 0-5H6"/><path d="M18 9h1.5a2.5 2.5 0 0 0 0-5H18"/><path d="M4 22h16"/><path d="M10 14.66V17c0 .55-.47.98-.97 1.21C7.85 18.75 7 20.24 7 22"/><path d="M14 14.66V17c0 .55.47.98.97 1.21C16.15 18.75 17 20.24 17 22"/><path d="M18 2H6v7a6 6 0 0 0 12 0V2z"/></svg>`,label:'Torneios Intraturma'},
   ];
+  const _navOrdem=['painel','turmas','semanal','sumarios','avaliacao','planificacao','calendario','reunioes','rotacao','torneios'];
+  const _navSub={painel:'Visão geral',turmas:'Alunos e grupos',semanal:'Horário e aulas',sumarios:'Registos de aula',avaliacao:'Notas e Fitescola',planificacao:'Modalidades',calendario:'Feriados e pausas',reunioes:'Notas e eventos',rotacao:'Rotação de espaços',torneios:'Competições de turma'};
+  const _navItems=_navOrdem.map(id=>items.find(i=>i.id===id)).filter(Boolean);
   return `<div class="sidebar">
-    <div class="nav-items">${items.map(i=>`<div class="nav-item${currentTab===i.id?' active':''}" data-tab="${i.id}"><span class="nav-icon">${i.icon}</span>${i.label}</div>`).join('')}</div>
+    <div class="nav-items nav-grid">${_navItems.map(i=>`<div class="nav-item${currentTab===i.id?' active':''}" data-tab="${i.id}"><span class="nav-icon">${i.icon}</span><span class="nav-card-label">${i.label}</span><span class="nav-card-sub">${_navSub[i.id]||''}</span></div>`).join('')}</div>
     <div class="sidebar-footer">
-      <div style="display:flex;flex-direction:column;gap:6px;width:100%;margin-bottom:8px">
-        <button id="exportJsonBtn" style="width:100%;background:rgba(96,165,250,0.15);color:#60a5fa;border:1px solid rgba(96,165,250,0.3);border-radius:6px;padding:7px 10px;font-size:12px;font-weight:600;cursor:pointer;text-align:left">💾 Exportar dados</button>
-        <label id="importJsonLabel" style="width:100%;background:rgba(96,165,250,0.08);color:rgba(255,255,255,0.55);border:1px solid rgba(255,255,255,0.1);border-radius:6px;padding:7px 10px;font-size:12px;font-weight:600;cursor:pointer;text-align:left;box-sizing:border-box">📂 Importar dados<input type="file" id="importJsonBtn" accept=".json" style="display:none"></label>
+      <div style="display:flex;flex-direction:column;gap:6px;width:100%;margin-bottom:0">
+        <button id="exportJsonBtn" style="width:100%;background:rgba(96,165,250,0.15);color:#60a5fa;border:1px solid rgba(96,165,250,0.3);border-radius:6px;padding:8px 10px;line-height:1.2;font-size:12.5px;font-weight:600;cursor:pointer;text-align:center;white-space:nowrap">💾 Exportar dados</button>
+        <label id="importJsonLabel" style="width:100%;background:rgba(96,165,250,0.08);color:rgba(255,255,255,0.55);border:1px solid rgba(255,255,255,0.1);border-radius:6px;padding:8px 10px;line-height:1.2;font-size:12.5px;font-weight:600;cursor:pointer;text-align:center;white-space:nowrap;box-sizing:border-box">📂 Importar dados<input type="file" id="importJsonBtn" accept=".json" style="display:none"></label>
       </div>
       <div class="logo-wrapper">
         ${S.logo
@@ -11805,12 +11824,13 @@ function renderTorneios() {
   </div>`;
   }
 
-  return `<div style="position:relative">
-    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px">
+  const _trFit = (trCurrentTab === 'tab-jogos' && !isMobile());
+  return `<div style="position:relative;${_trFit?'height:calc(100vh - var(--header-h) - 44px);display:flex;flex-direction:column;':''}">
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:${_trFit?'8':'14'}px;${_trFit?'flex-shrink:0;':''}">
       <div class="section-title" style="margin:0">🏆 Torneios Intraturma</div>
     </div>
-    ${tabBar}
-    <div id="trContent">${content}</div>
+    ${_trFit ? tabBar.replace('margin-bottom:16px','margin-bottom:10px;flex-shrink:0') : tabBar}
+    <div id="trContent" style="${_trFit?'flex:1;min-height:0;display:flex;flex-direction:column':''}">${content}</div>
     <div id="trNotif" style="position:fixed;bottom:24px;right:24px;background:var(--navy);color:#fff;padding:11px 18px;border-radius:8px;font-size:13px;font-weight:500;opacity:0;pointer-events:none;transition:opacity 0.3s;z-index:999"></div>
   </div>`;
 }
@@ -12077,37 +12097,40 @@ function trRenderJogosTab(split) {
   const breakMin = t.breakDuration != null ? t.breakDuration : 2;
 
   const timerPanel = `<div id="tr-timer-panel" style="
-      position:sticky;
-      top:0;
-      height:calc(100vh - var(--header-h) - 40px);
+      flex:1;
+      min-height:0;
+      box-sizing:border-box;
       background:var(--navy);
       border-radius:14px;
-      padding:28px 22px;
+      padding:clamp(10px,2vh,24px) 20px;
       box-shadow:0 4px 24px rgba(0,0,0,0.18);
       display:flex;
       flex-direction:column;
       align-items:center;
       justify-content:space-between;
-      overflow:hidden;
+      gap:clamp(4px,1vh,12px);
+      overflow-y:auto;
+      overflow-x:hidden;
     ">
+    ${trModeSwitchHtml()}
     <!-- Fase -->
     <span class="tr-timer-phase" id="tr-timer-phase" style="font-size:12px;font-weight:700;padding:4px 14px;border-radius:20px;background:rgba(255,255,255,0.12);color:#93c5fd;border:1px solid rgba(255,255,255,0.15)">⚽ Jogo</span>
 
     <!-- Display -->
     <div style="text-align:center;display:flex;flex-direction:column;align-items:center;gap:6px">
-      <div class="tr-timer-display stopped" id="tr-timer-display" style="font-size:clamp(52px,7vw,88px);letter-spacing:4px;color:#fff;line-height:1">00:00</div>
+      <div class="tr-timer-display stopped" id="tr-timer-display" style="font-size:clamp(40px,min(7vw,10vh),88px);letter-spacing:4px;color:#fff;line-height:1">00:00</div>
       <div class="tr-timer-label" id="tr-timer-label" style="font-size:12px;color:rgba(255,255,255,0.45);font-weight:600;letter-spacing:0.5px;text-transform:uppercase">Parado</div>
     </div>
 
     <!-- Barra de progresso -->
-    <div style="width:100%;background:rgba(255,255,255,0.1);border-radius:99px;height:6px;overflow:hidden">
+    <div class="tr-only-timer" style="width:100%;background:rgba(255,255,255,0.1);border-radius:99px;height:6px;overflow:hidden">
       <div id="tr-timer-progress" style="height:100%;width:0%;background:#22c55e;border-radius:99px;transition:width 0.9s linear,background 0.3s"></div>
     </div>
 
     <!-- Botões -->
-    <div style="display:flex;flex-direction:column;gap:8px;width:100%">
-      <button class="btn btn-primary" id="tr-timer-play" onclick="trTimerPlay()" style="width:100%;justify-content:center;font-size:14px;padding:11px;border-radius:10px">▶ Iniciar</button>
-      <button class="btn" id="tr-timer-pause-btn" onclick="trTimerPause()" style="width:100%;justify-content:center;font-size:14px;padding:11px;border-radius:10px;background:rgba(217,119,6,0.2);color:#fbbf24;border-color:rgba(217,119,6,0.4)">⏸ Intervalo</button>
+    <div style="display:flex;flex-direction:column;gap:clamp(4px,0.9vh,8px);width:100%">
+      <button class="btn btn-primary" id="tr-timer-play" onclick="trTimerPlay()" style="width:100%;justify-content:center;font-size:14px;padding:clamp(7px,1.4vh,11px);border-radius:10px">▶ Iniciar</button>
+      <button class="btn tr-only-timer" id="tr-timer-pause-btn" onclick="trTimerPause()" style="width:100%;justify-content:center;font-size:14px;padding:clamp(7px,1.4vh,11px);border-radius:10px;background:rgba(217,119,6,0.2);color:#fbbf24;border-color:rgba(217,119,6,0.4)">⏸ Intervalo</button>
       <button class="btn btn-sm" onclick="trTimerReset()" style="width:100%;justify-content:center;border-radius:10px;background:rgba(255,255,255,0.07);color:rgba(255,255,255,0.5);border-color:rgba(255,255,255,0.12)">↺ Reiniciar</button>
       <div style="display:flex;gap:6px;width:100%">
         <button type="button" class="btn btn-sm" onclick="trTimerTestSound('start')" style="touch-action:manipulation;cursor:pointer;flex:1;justify-content:center;font-size:11px;padding:6px;border-radius:8px;background:rgba(255,255,255,0.07);color:rgba(255,255,255,0.6);border-color:rgba(255,255,255,0.12)">🔊 Buzina de início</button>
@@ -12116,7 +12139,7 @@ function trRenderJogosTab(split) {
     </div>
 
     <!-- Inputs duração -->
-    <div style="width:100%;border-top:1px solid rgba(255,255,255,0.1);padding-top:14px;display:flex;gap:12px">
+    <div class="tr-only-timer" style="width:100%;border-top:1px solid rgba(255,255,255,0.1);padding-top:clamp(6px,1.2vh,14px);display:flex;gap:12px">
       <div style="flex:1;display:flex;flex-direction:column;align-items:center;gap:4px">
         <span style="font-size:10px;font-weight:700;color:rgba(255,255,255,0.4);text-transform:uppercase;letter-spacing:0.5px">⚽ Jogo (min)</span>
         <input class="tr-timer-dur-input" id="tr-timer-match-dur" type="number" min="1" max="60" value="${matchMin}" onchange="trTimerReset()" style="width:100%;text-align:center;background:rgba(255,255,255,0.08);border-color:rgba(255,255,255,0.15);color:#fff;border-radius:8px">
@@ -12139,6 +12162,7 @@ function trRenderJogosTab(split) {
         background:var(--navy);border-radius:12px;padding:10px 12px;
         display:flex;flex-direction:column;gap:8px;
       ">
+        <div style="display:flex;justify-content:center">${trModeSwitchHtml()}</div>
         <!-- Linha 1: fase + display + label -->
         <div style="display:flex;align-items:center;gap:10px">
           <span class="tr-timer-phase" id="tr-timer-phase" style="font-size:10px;font-weight:700;padding:3px 10px;border-radius:20px;background:rgba(255,255,255,0.12);color:#93c5fd;border:1px solid rgba(255,255,255,0.15);white-space:nowrap">⚽ Jogo</span>
@@ -12147,7 +12171,7 @@ function trRenderJogosTab(split) {
             <div class="tr-timer-label" id="tr-timer-label" style="font-size:9px;color:rgba(255,255,255,0.45);font-weight:600;letter-spacing:0.5px;text-transform:uppercase;margin-top:1px">Parado</div>
           </div>
           <!-- Inputs duração compactos -->
-          <div style="display:flex;flex-direction:column;gap:4px;width:72px;flex-shrink:0">
+          <div class="tr-only-timer" style="display:flex;flex-direction:column;gap:4px;width:72px;flex-shrink:0">
             <div style="display:flex;align-items:center;gap:3px">
               <span style="font-size:9px;color:rgba(255,255,255,0.4);width:14px;text-align:center;flex-shrink:0">⚽</span>
               <input class="tr-timer-dur-input" id="tr-timer-match-dur" type="number" min="1" max="60" value="${matchMin}" onchange="trTimerReset()" style="flex:1;min-width:0;text-align:center;background:rgba(255,255,255,0.08);border-color:rgba(255,255,255,0.15);color:#fff;border-radius:6px;padding:3px;font-size:12px">
@@ -12159,7 +12183,7 @@ function trRenderJogosTab(split) {
           </div>
         </div>
         <!-- Barra de progresso -->
-        <div style="width:100%;background:rgba(255,255,255,0.1);border-radius:99px;height:4px;overflow:hidden">
+        <div class="tr-only-timer" style="width:100%;background:rgba(255,255,255,0.1);border-radius:99px;height:4px;overflow:hidden">
           <div id="tr-timer-progress" style="height:100%;width:0%;background:#22c55e;border-radius:99px;transition:width 0.9s linear,background 0.3s"></div>
         </div>
         <!-- Testar sons -->
@@ -12178,7 +12202,7 @@ function trRenderJogosTab(split) {
           <button class="btn btn-sm" style="flex-shrink:0;background:var(--amber2);color:var(--amber);border-color:#fcd34d;font-size:11px;padding:4px 8px" onclick="trResetMatches()">&#8635; Reiniciar</button>
           <!-- 4 botões de controlo do relógio numa linha -->
           <button class="btn btn-primary btn-sm" id="tr-timer-play" onclick="trTimerPlay()" style="flex-shrink:0;font-size:11px;padding:4px 8px">&#9654;</button>
-          <button class="btn btn-sm" id="tr-timer-pause-btn" onclick="trTimerPause()" style="flex-shrink:0;font-size:11px;padding:4px 8px;background:rgba(217,119,6,0.2);color:#fbbf24;border-color:rgba(217,119,6,0.4)">&#9208;</button>
+          <button class="btn btn-sm tr-only-timer" id="tr-timer-pause-btn" onclick="trTimerPause()" style="flex-shrink:0;font-size:11px;padding:4px 8px;background:rgba(217,119,6,0.2);color:#fbbf24;border-color:rgba(217,119,6,0.4)">&#9208;</button>
           <button class="btn btn-sm" onclick="trTimerReset()" style="flex-shrink:0;font-size:11px;padding:4px 8px;background:rgba(100,116,139,0.1);color:var(--gray);border-color:var(--border)">&#8635;</button>
         </div>
         <!-- Linha 2: relógio compacto -->
@@ -12190,9 +12214,9 @@ function trRenderJogosTab(split) {
     return `<div><div style="position:sticky;top:-20px;z-index:40;background:#f0f2f5;padding-top:20px;margin-top:-20px">${_mobHead}</div>${_mobBody}</div>`;
   }
 
-  return `<div>
+  return `<div style="flex:1;min-height:0;display:flex;flex-direction:column">
     <!-- Cabeçalho -->
-    <div style="display:flex;align-items:center;gap:10px;margin-bottom:14px;flex-wrap:wrap">
+    <div style="display:flex;align-items:center;gap:10px;margin-bottom:10px;flex-wrap:wrap;flex-shrink:0">
       <div style="font-size:16px;font-weight:700;color:var(--navy)">${esc(t.name)}</div>
       <span style="background:var(--amber2);color:var(--amber);padding:3px 10px;border-radius:20px;font-size:11px;font-weight:700">${done}/${total} jogados</span>
       ${ctrlBtns}
@@ -12202,21 +12226,34 @@ function trRenderJogosTab(split) {
     </div>
 
     <!-- Layout duas colunas -->
-    <div style="display:grid;grid-template-columns:1fr 300px;gap:16px;align-items:start">
+    <div style="flex:1;min-height:0;display:grid;grid-template-columns:1fr 300px;grid-template-rows:minmax(0,1fr);gap:16px">
       <!-- Esquerda: lista de jogos com scroll -->
-      <div style="overflow-y:auto;max-height:calc(100vh - var(--header-h) - 120px)" id="tr-matches">${matchesHtml}</div>
-      <!-- Direita: relógio sticky -->
-      <div>${timerPanel}</div>
+      <div style="overflow-y:auto;min-height:0;padding-right:4px" id="tr-matches">${matchesHtml}</div>
+      <!-- Direita: relógio (ocupa a altura disponível) -->
+      <div style="display:flex;flex-direction:column;min-height:0">${timerPanel}</div>
     </div>
   </div>`;
 }
 
+// Cores suaves por jornada/ronda (fundo + contorno), em ciclo
+const TR_ROUND_TINTS = [
+  { bg:'#dbeafe', bd:'#93c5fd' }, // azul
+  { bg:'#dcfce7', bd:'#86efac' }, // verde
+  { bg:'#fef3c7', bd:'#fcd34d' }, // âmbar
+  { bg:'#ede9fe', bd:'#c4b5fd' }, // violeta
+  { bg:'#fce7f3', bd:'#f9a8d4' }, // rosa
+  { bg:'#cffafe', bd:'#67e8f9' }, // ciano
+  { bg:'#ffedd5', bd:'#fdba74' }, // laranja
+  { bg:'#e0e7ff', bd:'#a5b4fc' }, // índigo
+];
 function trMatchCard(m) {
   const homeWin = m.played && m.homeScore > m.awayScore;
   const awayWin = m.played && m.awayScore > m.homeScore;
   const draw = m.played && m.homeScore === m.awayScore;
   if (m.bye || m.away === 'BYE') return '';
-  return `<div class="tr-match-card${m.played?' played':''}" id="tr-match-${m.id}">
+  const _tint = TR_ROUND_TINTS[(((parseInt(m.round,10)||1)-1) % TR_ROUND_TINTS.length + TR_ROUND_TINTS.length) % TR_ROUND_TINTS.length];
+  const _tintStyle = `background:${_tint.bg};border-top-color:${_tint.bd};border-right-color:${_tint.bd};border-bottom-color:${_tint.bd};${m.played?'':'border-left-color:'+_tint.bd+';'}`;
+  return `<div class="tr-match-card${m.played?' played':''}" id="tr-match-${m.id}" style="${_tintStyle}">
     <div class="tr-match-team">
       <span class="tr-team-name" style="${homeWin?'color:var(--green)':''}">${esc(m.home)}</span>
       ${m.played?`<span class="tr-badge ${homeWin?'tr-badge-win':awayWin?'tr-badge-loss':'tr-badge-draw'}">${homeWin?'V':awayWin?'D':'E'}</span>`:''}
@@ -12294,6 +12331,7 @@ function trRenderClassTab() {
       <div style="display:flex;align-items:center;gap:5px;font-size:12px;color:var(--gray)"><span style="background:#FAC775;width:13px;height:13px;border-radius:50%;display:inline-block"></span> 1º lugar</div>
       <div style="display:flex;align-items:center;gap:5px;font-size:12px;color:var(--gray)"><span style="background:#D3D1C7;width:13px;height:13px;border-radius:50%;display:inline-block"></span> 2º lugar</div>
       <div style="display:flex;align-items:center;gap:5px;font-size:12px;color:var(--gray)"><span style="background:#F5C4B3;width:13px;height:13px;border-radius:50%;display:inline-block"></span> 3º lugar</div>
+      <div style="flex-basis:100%;font-size:11.5px;color:var(--gray)">Desempate entre 2 equipas: 1.º confronto direto · depois diferença de golos e golos marcados.</div>
     </div>
   </div>`;
 }
@@ -12828,6 +12866,32 @@ function trAdvanceDE() {
   trSave(); trGoTab('tab-jogos'); trNotify('⚡ Próxima ronda Vencedores!');
 }
 
+// Desempate: quando exatamente 2 equipas terminam empatadas em pontos, decide o confronto direto
+// (pontos nos jogos entre elas). Se não houver confronto direto decisivo (não jogaram, empate ou
+// uma vitória para cada), segue-se: diferença de golos, golos marcados, nome.
+// Com 3 ou mais equipas empatadas aplica-se a ordem habitual (diferença de golos, golos marcados).
+function trOrdenarComConfrontoDireto(lista, jogos, ptsWinFn, ptsDraw) {
+  const base = (a,b) => b.gd-a.gd || b.gf-a.gf || a.name.localeCompare(b.name);
+  const porPts = [...lista].sort((a,b) => b.pts-a.pts);
+  const grupos = [];
+  porPts.forEach(s => { const g = grupos[grupos.length-1]; if (g && g[0].pts === s.pts) g.push(s); else grupos.push([s]); });
+  const out = [];
+  grupos.forEach(g => {
+    if (g.length === 2) {
+      const [A,B] = g; let pa = 0, pb = 0;
+      jogos.filter(m => m.played && !m.bye && m.away !== 'BYE' && ((m.home===A.name && m.away===B.name) || (m.home===B.name && m.away===A.name))).forEach(m => {
+        const sa = m.home===A.name ? m.homeScore : m.awayScore;
+        const sb = m.home===A.name ? m.awayScore : m.homeScore;
+        const pw = ptsWinFn(m);
+        if (sa > sb) pa += pw; else if (sb > sa) pb += pw; else { pa += ptsDraw; pb += ptsDraw; }
+      });
+      g.sort((a,b) => (pa !== pb) ? (a===A ? pb-pa : pa-pb) : base(a,b));
+    } else g.sort(base);
+    out.push(...g);
+  });
+  return out;
+}
+
 function trComputeStandings(t) {
   const map = {};
   t.teams.forEach(team => { map[team.name]={name:team.name,played:0,wins:0,draws:0,losses:0,gf:0,ga:0,gd:0,pts:0}; });
@@ -12840,7 +12904,7 @@ function trComputeStandings(t) {
     else{h.draws++;a.draws++;h.pts+=t.ptsDraw;a.pts+=t.ptsDraw;}
   });
   Object.values(map).forEach(s=>s.gd=s.gf-s.ga);
-  return Object.values(map).sort((a,b)=>b.pts-a.pts||b.gd-a.gd||b.gf-a.gf||a.name.localeCompare(b.name));
+  return trOrdenarComConfrontoDireto(Object.values(map), t.matches, m => (m.div ? trDivMatchPts(t, m) : t.ptsWin), t.ptsDraw);
 }
 
 function trComputeGroupStandings(gMs, ptsWin, ptsDraw) {
@@ -12855,7 +12919,7 @@ function trComputeGroupStandings(gMs, ptsWin, ptsDraw) {
     else{h.draws++;a.draws++;h.pts+=ptsDraw;a.pts+=ptsDraw;}
   });
   Object.values(map).forEach(s=>s.gd=s.gf-s.ga);
-  return Object.values(map).sort((a,b)=>b.pts-a.pts||b.gd-a.gd||b.gf-a.gf||a.name.localeCompare(b.name));
+  return trOrdenarComConfrontoDireto(Object.values(map), gMs, () => ptsWin, ptsDraw);
 }
 
 // ══════════════════════════════════════════════════════════════
@@ -12869,6 +12933,7 @@ let _trTimer = {
   totalGame: 600,
   totalBreak: 120,
   audioCtx: null,  // contexto partilhado — criado no 1.º toque do utilizador
+  mode: (function(){ try{ return localStorage.getItem('trTimerMode')==='crono'?'crono':'timer'; }catch(e){ return 'timer'; } })(), // 'timer' = temporizador (decrescente) · 'crono' = cronómetro (crescente)
   startedAt: null, // timestamp real (Date.now()) do início da contagem actual — imune a "engasgamentos" do setInterval em 2º plano
 };
 let _trWakeLock = null;
@@ -12910,10 +12975,14 @@ function trTimerUpdateUI() {
   const playBtn = document.getElementById('tr-timer-play');
   if (!disp) return;
 
+  const crono = _trTimer.mode === 'crono';
+  document.body.classList.toggle('tr-modo-crono', crono);
+  document.querySelectorAll('.tr-mode-btn').forEach(b => b.classList.toggle('active', b.dataset.mode === _trTimer.mode));
   const dur = _trTimer.phase === 'game' ? _trTimer.totalGame : _trTimer.totalBreak;
   const remaining = Math.max(0, dur - _trTimer.elapsed);
-  const m = Math.floor(remaining / 60);
-  const s = remaining % 60;
+  const shown = crono ? _trTimer.elapsed : remaining; // cronómetro mostra o tempo decorrido
+  const m = Math.floor(shown / 60);
+  const s = shown % 60;
   disp.textContent = String(m).padStart(2,'0') + ':' + String(s).padStart(2,'0');
 
   disp.className = 'tr-timer-display';
@@ -12925,17 +12994,17 @@ function trTimerUpdateUI() {
   // Barra de progresso
   const prog = document.getElementById('tr-timer-progress');
   if (prog) {
-    const pct = Math.min(100, (_trTimer.elapsed / dur) * 100);
+    const pct = crono ? 0 : Math.min(100, (_trTimer.elapsed / dur) * 100);
     prog.style.width = pct + '%';
     prog.style.background = _trTimer.phase === 'break' ? '#fbbf24' : '#22c55e';
   }
 
-  if (_trTimer.state === 'stopped') lbl.textContent = remaining === 0 ? '🔔 Fim!' : 'Parado';
+  if (_trTimer.state === 'stopped') lbl.textContent = (!crono && remaining === 0) ? '🔔 Fim!' : 'Parado';
   else if (_trTimer.state === 'paused') lbl.textContent = 'Pausado';
-  else lbl.textContent = _trTimer.phase === 'game' ? 'A jogar…' : 'Intervalo…';
+  else lbl.textContent = crono ? 'A cronometrar…' : (_trTimer.phase === 'game' ? 'A jogar…' : 'Intervalo…');
 
   if (phase) {
-    phase.textContent = _trTimer.phase === 'game' ? '⚽ Jogo' : '☕ Intervalo';
+    phase.textContent = crono ? '⏱ Cronómetro' : (_trTimer.phase === 'game' ? '⚽ Jogo' : '☕ Intervalo');
     phase.className = 'tr-timer-phase' + (_trTimer.phase === 'break' ? ' pause-phase' : '');
   }
 
@@ -13102,7 +13171,7 @@ function trTimerTick() {
   }
   const dur = _trTimer.phase === 'game' ? _trTimer.totalGame : _trTimer.totalBreak;
 
-  if (_trTimer.elapsed >= dur) {
+  if (_trTimer.mode !== 'crono' && _trTimer.elapsed >= dur) {
     // Chegar a zero: tocar buzina e parar
     _trTimer.elapsed = dur; // fixar exatamente em 00:00
     clearInterval(_trTimer.interval);
@@ -13156,6 +13225,7 @@ function trTimerPlay() {
 }
 
 function trTimerPause() {
+  if (_trTimer.mode === 'crono') return; // o cronómetro não tem intervalo
   const { game, brk } = trTimerGetDurations();
   _trTimer.totalGame  = game;
   _trTimer.totalBreak = brk;
@@ -13177,6 +13247,27 @@ function trTimerPause() {
     trTimerBuzzer('start'); // apito também no início do intervalo
   }
   trTimerUpdateUI();
+}
+
+// Alterna entre temporizador e cronómetro (para e repõe o relógio ao mudar)
+function trTimerSetMode(m) {
+  m = (m === 'crono') ? 'crono' : 'timer';
+  if (m !== _trTimer.mode) {
+    clearInterval(_trTimer.interval);
+    _trTimer.interval = null;
+    _trTimer.state = 'stopped';
+    _trTimer.phase = 'game';
+    _trTimer.elapsed = 0;
+    _trTimer.startedAt = null;
+    trTimerReleaseWakeLock();
+    _trTimer.mode = m;
+    try { localStorage.setItem('trTimerMode', m); } catch (e) {}
+  }
+  trTimerUpdateUI();
+}
+function trModeSwitchHtml() {
+  const a = _trTimer.mode;
+  return `<div class="tr-mode-switch"><button type="button" class="tr-mode-btn${a==='timer'?' active':''}" data-mode="timer" onclick="trTimerSetMode('timer')">⏳ Temporizador</button><button type="button" class="tr-mode-btn${a==='crono'?' active':''}" data-mode="crono" onclick="trTimerSetMode('crono')">⏱ Cronómetro</button></div>`;
 }
 
 function trTimerReset() {
